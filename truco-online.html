@@ -45,6 +45,9 @@
   }
   .centro-mesa .sin-cartas{opacity:.45; font-size:.75rem; text-align:center;}
 
+  .pila-jugador{position:absolute; width:0; height:0;}
+  .carta-en-pila{position:absolute; top:0; left:0; width:58px; height:84px; transition:transform .35s ease;}
+
   .asiento-redondo{
     position:absolute; transform:translate(-50%,-50%);
     text-align:center; width:96px;
@@ -64,7 +67,6 @@
   @keyframes latido{ 0%,100%{opacity:1;} 50%{opacity:.6;} }
 
   .carta-mesa{width:58px; position:relative;}
-  .carta-mesa .etiqueta{font-size:.68rem; text-align:center; margin-top:4px; opacity:.75;}
 
   .carta{width:58px; height:84px; border-radius:6px; background:var(--blanco); color:var(--tinta); display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 4px 10px rgba(0,0,0,.3);}
   .carta.dorso{background:linear-gradient(145deg,#B4483A,#7C2E24); border:2px solid var(--blanco);}
@@ -154,9 +156,7 @@
   <div id="juego" style="display:none;">
     <div class="marcador" id="marcador"></div>
 
-    <div class="mesa-redonda" id="mesaRedonda">
-      <div class="centro-mesa" id="cartasEnMesa"></div>
-    </div>
+    <div class="mesa-redonda" id="mesaRedonda"></div>
 
     <div class="turno-info" id="turnoInfo"></div>
 
@@ -393,7 +393,69 @@
       mesa.appendChild(div);
     });
   }
-  window.addEventListener('resize', actualizarAsientosInfo);
+  window.addEventListener('resize', ()=>{
+    actualizarAsientosInfo();
+    if(ultimaPartida) renderPilasDeCartas(ultimaPartida);
+  });
+
+  // Aleatoriedad "fija": misma seed => siempre el mismo resultado,
+  // así el desparramo de cada carta no cambia entre una actualización y otra.
+  function seededRandom(seed){
+    const x = Math.sin(seed*999)*10000;
+    return x - Math.floor(x);
+  }
+
+  function renderPilasDeCartas(p){
+    const mesa = $('mesaRedonda');
+    if(!mesa) return;
+    mesa.querySelectorAll('.pila-jugador').forEach(el=>el.remove());
+    mesa.querySelectorAll('.centro-mesa').forEach(el=>el.remove());
+
+    const w = mesa.clientWidth || 300;
+    const cx = w/2, cy = w/2;
+    const radioPila = w * 0.24;
+    let totalCartas = 0;
+
+    for(let s=0;s<4;s++){
+      const usadas = p.usadas[s]||[];
+      if(usadas.length===0) continue;
+      totalCartas += usadas.length;
+
+      const angle = (-90 - s*90) * Math.PI/180;
+      const baseX = cx + radioPila*Math.cos(angle);
+      const baseY = cy + radioPila*Math.sin(angle);
+
+      const cont = document.createElement('div');
+      cont.className = 'pila-jugador';
+      cont.style.left = baseX+'px';
+      cont.style.top = baseY+'px';
+
+      usadas.forEach((idx, i)=>{
+        const carta = p.manos[s][idx];
+        if(!carta) return;
+        const seed = (s+1)*37 + (idx+1)*11 + i*5;
+        const rot = (seededRandom(seed)*2-1) * 18;       // entre -18° y 18°
+        const dx = (seededRandom(seed+1)*2-1) * 12;       // pequeño corrimiento horizontal
+        const dy = (seededRandom(seed+2)*2-1) * 12;       // pequeño corrimiento vertical
+
+        const div = document.createElement('div');
+        div.className = 'carta-en-pila';
+        div.style.transform = `translate(-50%,-50%) translate(${dx}px, ${dy}px) rotate(${rot}deg)`;
+        div.style.zIndex = String(i+1);
+        div.innerHTML = cartaHTML(carta);
+        cont.appendChild(div);
+      });
+
+      mesa.appendChild(cont);
+    }
+
+    if(totalCartas===0){
+      const msg = document.createElement('div');
+      msg.className = 'centro-mesa';
+      msg.innerHTML = '<span class="sin-cartas">Esperando la primera carta...</span>';
+      mesa.appendChild(msg);
+    }
+  }
 
   // ---------- Render ----------
   let ultimoRenderJSON = '';
@@ -424,19 +486,7 @@
       <div class="equipo"><div class="nom">Rival</div><div class="pts">${p.puntos[(miEquipo+1)%2]||0}</div></div>`;
 
     actualizarAsientosInfo();
-
-    const mesa = $('cartasEnMesa');
-    mesa.innerHTML = '';
-    if(p.cartasJugadasBaza.length===0){
-      mesa.innerHTML = '<span class="sin-cartas">Esperando la primera carta...</span>';
-    } else {
-      p.cartasJugadasBaza.forEach(j=>{
-        const div = document.createElement('div');
-        div.className='carta-mesa';
-        div.innerHTML = cartaHTML(j.carta) + `<div class="etiqueta">${escapeHtml(uidToNombre[seatToUid[j.seat]]||'')}</div>`;
-        mesa.appendChild(div);
-      });
-    }
+    renderPilasDeCartas(p);
 
     if(p.terminada){
       $('juego').style.display='none';
