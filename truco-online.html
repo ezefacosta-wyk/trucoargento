@@ -45,10 +45,21 @@
   .seccion-titulo{font-size:.72rem; text-transform:uppercase; letter-spacing:.13em; color:rgba(251,249,244,.55); margin:18px 0 8px; text-align:center;}
 
   .mano-jugador{display:flex; gap:12px; justify-content:center; margin-bottom:6px;}
-  .carta-jugable{width:66px; height:96px; cursor:pointer; transition:transform .15s;}
+  .carta-jugable{width:66px; height:96px; cursor:pointer; transition:transform .15s; position:relative;}
   .carta-jugable:hover{transform:translateY(-8px);}
   .carta-jugable.usada{opacity:.2; pointer-events:none;}
   .carta-jugable.bloqueada{opacity:.55; cursor:not-allowed; pointer-events:none;}
+  .carta-jugable.bloqueada .sena-badge{pointer-events:auto; cursor:pointer;}
+  .sena-badge{
+    position:absolute; top:-16px; left:50%; transform:translateX(-50%);
+    width:30px; height:30px; border-radius:50%;
+    background:var(--sol); border:2px solid var(--tapete-deep);
+    display:flex; align-items:center; justify-content:center;
+    font-size:1rem; cursor:pointer; z-index:5;
+    box-shadow:0 3px 8px rgba(0,0,0,.35);
+  }
+  .sena-badge:hover{transform:translateX(-50%) scale(1.12);}
+  .sena-badge:active{transform:translateX(-50%) scale(0.95);}
 
   .cartas-companero{display:flex; gap:10px; justify-content:center; margin-bottom:10px;}
   .cartas-companero .carta{width:50px; height:74px; opacity:.85;}
@@ -101,6 +112,12 @@
     <h2>Conectando a la mesa...</h2>
   </div>
 
+  <div id="esperandoReparto" class="pantalla-centro" style="display:none;">
+    <h2>Esperando que se repartan las cartas...</h2>
+    <p style="opacity:.7; font-size:.9rem;">Esto debería pasar solo apenas entran los 4 jugadores.</p>
+    <button class="btn btn-sol" id="btnRepartirManual" style="display:none;">Repartir cartas ahora</button>
+  </div>
+
   <div id="juego" style="display:none;">
     <div class="marcador" id="marcador"></div>
     <div class="asientos-info" id="asientosInfo"></div>
@@ -116,8 +133,6 @@
         <input type="checkbox" id="chkMostrar"> Mostrarle mis cartas a mi compañero
       </label>
       <div class="cartas-companero" id="cartasCompanero"></div>
-      <div class="seccion-titulo" style="margin-top:12px;">Señas rápidas</div>
-      <div class="senas-grid" id="senasGrid"></div>
     </div>
 
     <div class="seccion-titulo">Tu mano</div>
@@ -249,8 +264,18 @@
     }
 
     $('cargando').style.display='none';
-    $('juego').style.display='block';
-    renderSenas();
+    $('esperandoReparto').style.display='block';
+
+    let partidaVista = false;
+    setTimeout(()=>{
+      if(!partidaVista) $('btnRepartirManual').style.display='inline-block';
+    }, 4000);
+    $('btnRepartirManual').addEventListener('click', async ()=>{
+      const s2 = await get(ref(db,'salas/'+codigo+'/partida'));
+      if(!s2.exists()){
+        await set(ref(db,'salas/'+codigo+'/partida'), crearPartidaInicial(0, data.objetivo||30));
+      }
+    });
 
     // Presencia: si se desconecta (pantalla bloqueada, wifi, etc.) NO se lo saca de la mesa,
     // solo se marca como desconectado hasta que vuelva. Se repone sola en cada reconexión.
@@ -270,6 +295,9 @@
     onValue(ref(db,'salas/'+codigo), (s)=>{
       const d = s.val();
       if(!d || !d.partida) return;
+      partidaVista = true;
+      $('esperandoReparto').style.display='none';
+      $('juego').style.display='block';
       render(d.partida);
     });
     onValue(ref(db,'salas/'+codigo+'/senas/'+miSeat), (s)=>{
@@ -390,6 +418,15 @@
       div.innerHTML = cartaHTML(c);
       if(!usada && !bloqueado){
         div.addEventListener('click', ()=>jugarCarta(idx));
+      }
+      const sena = SENAS.find(s=>s.cond(c));
+      if(sena && !usada){
+        const badge = document.createElement('div');
+        badge.className = 'sena-badge';
+        badge.textContent = sena.emoji;
+        badge.title = 'Avisarle a tu compañero: ' + sena.txt;
+        badge.addEventListener('click', (ev)=>{ ev.stopPropagation(); enviarSena(sena); });
+        div.appendChild(badge);
       }
       cont.appendChild(div);
     });
@@ -605,17 +642,6 @@
   });
 
   // ---------- Señas ----------
-  function renderSenas(){
-    const cont = $('senasGrid');
-    cont.innerHTML = '';
-    SENAS.forEach(s=>{
-      const b = document.createElement('div');
-      b.className = 'sena-btn';
-      b.innerHTML = `${s.emoji}<span class="txt">${s.txt}</span>`;
-      b.addEventListener('click', ()=>enviarSena(s));
-      cont.appendChild(b);
-    });
-  }
   async function enviarSena(s){
     const companero = companeroDe(miSeat);
     await set(ref(db,'salas/'+codigo+'/senas/'+companero), {
