@@ -397,7 +397,20 @@
 
   // ---------- Render ----------
   let ultimoRenderJSON = '';
+  function normalizarPartida(p){
+    p.cartasJugadasBaza = p.cartasJugadasBaza || [];
+    p.bazas = p.bazas || [];
+    p.log = p.log || [];
+    p.usadas = p.usadas || {};
+    p.manos = p.manos || {};
+    p.mostrarCartas = p.mostrarCartas || {};
+    p.puntos = p.puntos || {"0":0,"1":0};
+    for(let s=0;s<4;s++){ p.usadas[s] = p.usadas[s] || []; p.manos[s] = p.manos[s] || []; }
+    return p;
+  }
+
   function render(p){
+    p = normalizarPartida(p);
     const json = JSON.stringify(p);
     if(json===ultimoRenderJSON) return;
     ultimoRenderJSON = json;
@@ -550,8 +563,9 @@
   // ---------- Acciones (leen, mutan y graban la partida) ----------
   async function conPartida(fn){
     const snap = await get(ref(db,'salas/'+codigo+'/partida'));
-    const p = snap.val();
+    let p = snap.val();
     if(!p) return;
+    p = normalizarPartida(p);
     await fn(p);
     await guardarPartida(p);
   }
