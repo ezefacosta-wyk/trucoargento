@@ -23,13 +23,46 @@
   .marcador .equipo .pts{font-family:'Fraunces',serif; font-weight:700; font-size:1.7rem; color:var(--sol);}
   .marcador .equipo.mio{border-color:var(--celeste);}
 
-  .mesa-4{
-    position:relative; background:rgba(0,0,0,.18); border:1px solid var(--line); border-radius:16px;
-    padding:20px; min-height:200px; margin-bottom:16px;
+  .mesa-redonda{
+    position:relative;
+    width:min(360px, 82vw); height:min(360px, 82vw);
+    margin:10px auto 60px;
+    border-radius:50%;
+    background:
+      radial-gradient(circle at 50% 42%, rgba(252,191,73,0.10), transparent 60%),
+      radial-gradient(circle, #145C41 0%, var(--tapete) 62%, var(--tapete-deep) 100%);
+    border:8px solid #0A2B20;
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.45), 0 16px 40px -16px rgba(0,0,0,0.6);
   }
-  .asientos-info{display:flex; justify-content:space-between; font-size:.75rem; opacity:.7; margin-bottom:10px; flex-wrap:wrap; gap:6px;}
-  .asientos-info .yo{color:var(--sol); font-weight:600;}
-  .cartas-en-mesa{display:flex; gap:16px; flex-wrap:wrap; justify-content:center; align-items:flex-end; min-height:100px;}
+  .mesa-redonda::before{
+    content:''; position:absolute; inset:20px;
+    border:1px dashed rgba(251,249,244,0.15); border-radius:50%;
+  }
+  .centro-mesa{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    display:flex; gap:8px; flex-wrap:wrap; justify-content:center; align-items:center;
+    max-width:75%;
+  }
+  .centro-mesa .sin-cartas{opacity:.45; font-size:.75rem; text-align:center;}
+
+  .asiento-redondo{
+    position:absolute; transform:translate(-50%,-50%);
+    text-align:center; width:96px;
+  }
+  .asiento-redondo .nom{
+    font-size:.72rem; font-weight:600; padding:3px 9px; border-radius:999px;
+    display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    background:rgba(0,0,0,.35);
+  }
+  .asiento-redondo.equipo-a .nom{border:1px solid var(--celeste);}
+  .asiento-redondo.equipo-b .nom{border:1px solid var(--sol);}
+  .asiento-redondo.turno .nom{
+    background:var(--sol); color:var(--tinta);
+    animation:latido 1s ease-in-out infinite;
+  }
+  .asiento-redondo.vos .nom{outline:2px solid var(--blanco); outline-offset:1px;}
+  @keyframes latido{ 0%,100%{opacity:1;} 50%{opacity:.6;} }
+
   .carta-mesa{width:58px; position:relative;}
   .carta-mesa .etiqueta{font-size:.68rem; text-align:center; margin-top:4px; opacity:.75;}
 
@@ -114,16 +147,15 @@
 
   <div id="esperandoReparto" class="pantalla-centro" style="display:none;">
     <h2>Esperando que se repartan las cartas...</h2>
-    <p style="opacity:.7; font-size:.9rem;">Esto debería pasar solo apenas entran los 4 jugadores.</p>
-    <button class="btn btn-sol" id="btnRepartirManual" style="display:none;">Repartir cartas ahora</button>
+    <p style="opacity:.7; font-size:.9rem;">Esto debería pasar solo apenas entran los 4 jugadores. Si no pasa, tocá el botón.</p>
+    <button class="btn btn-sol" id="btnRepartirManual">Repartir cartas</button>
   </div>
 
   <div id="juego" style="display:none;">
     <div class="marcador" id="marcador"></div>
-    <div class="asientos-info" id="asientosInfo"></div>
 
-    <div class="mesa-4">
-      <div class="cartas-en-mesa" id="cartasEnMesa"></div>
+    <div class="mesa-redonda" id="mesaRedonda">
+      <div class="centro-mesa" id="cartasEnMesa"></div>
     </div>
 
     <div class="turno-info" id="turnoInfo"></div>
@@ -259,21 +291,19 @@
     if(miSeat===null){ $('cargando').innerHTML = '<h2>No estás sentado en esta mesa</h2>'; return; }
 
     // si no existe la partida todavía, el jugador del asiento 0 la reparte
+    // (el primer repartidor de la mesa se sortea al azar)
     if(!data.partida && miSeat===0){
-      await set(ref(db,'salas/'+codigo+'/partida'), crearPartidaInicial(0, data.objetivo||30));
+      await set(ref(db,'salas/'+codigo+'/partida'), crearPartidaInicial(Math.floor(Math.random()*4), data.objetivo||30));
     }
 
     $('cargando').style.display='none';
     $('esperandoReparto').style.display='block';
 
     let partidaVista = false;
-    setTimeout(()=>{
-      if(!partidaVista) $('btnRepartirManual').style.display='inline-block';
-    }, 4000);
     $('btnRepartirManual').addEventListener('click', async ()=>{
       const s2 = await get(ref(db,'salas/'+codigo+'/partida'));
       if(!s2.exists()){
-        await set(ref(db,'salas/'+codigo+'/partida'), crearPartidaInicial(0, data.objetivo||30));
+        await set(ref(db,'salas/'+codigo+'/partida'), crearPartidaInicial(Math.floor(Math.random()*4), data.objetivo||30));
       }
     });
 
@@ -334,15 +364,36 @@
     if(p.log.length>40) p.log.shift();
   }
 
+  let ultimaPartida = null;
+
   function actualizarAsientosInfo(){
-    $('asientosInfo').innerHTML = [0,1,2,3].map(s=>{
+    const mesa = $('mesaRedonda');
+    if(!mesa) return;
+    mesa.querySelectorAll('.asiento-redondo').forEach(el=>el.remove());
+    const w = mesa.clientWidth || 300;
+    const cx = w/2, cy = w/2;
+    const radio = w/2 + 26;
+    const p = ultimaPartida;
+    [0,1,2,3].forEach(s=>{
+      const angle = (-90 - s*90) * Math.PI/180; // sentido antihorario a medida que aumenta el asiento
+      const x = cx + radio*Math.cos(angle);
+      const y = cy + radio*Math.sin(angle);
       const nom = uidToNombre[seatToUid[s]] || ('Asiento '+s);
-      const marca = s===miSeat ? ' class="yo"' : '';
       const conectado = !presenciaData[s] || presenciaData[s].conectado!==false;
       const punto = conectado ? '🟢' : '🟡';
-      return `<span${marca}>${punto} ${escapeHtml(nom)}${s===miSeat?' (vos)':''}</span>`;
-    }).join('');
+      const equipoClase = equipoDe(s)===0 ? 'equipo-a' : 'equipo-b';
+      const cantoActivo = (p && ((p.trucoState&&p.trucoState.pendiente) || (p.envidoState&&p.envidoState.pendiente)));
+      const esTurno = (p && !p.terminada && !cantoActivo && p.turnoSeat===s) ? ' turno' : '';
+      const esVos = s===miSeat ? ' vos' : '';
+      const div = document.createElement('div');
+      div.className = 'asiento-redondo ' + equipoClase + esTurno + esVos;
+      div.style.left = x+'px';
+      div.style.top = y+'px';
+      div.innerHTML = `<div class="nom">${punto} ${escapeHtml(nom)}${s===miSeat?' (vos)':''}</div>`;
+      mesa.appendChild(div);
+    });
   }
+  window.addEventListener('resize', actualizarAsientosInfo);
 
   // ---------- Render ----------
   let ultimoRenderJSON = '';
@@ -350,6 +401,7 @@
     const json = JSON.stringify(p);
     if(json===ultimoRenderJSON) return;
     ultimoRenderJSON = json;
+    ultimaPartida = p;
 
     const miEquipo = equipoDe(miSeat);
     const companero = companeroDe(miSeat);
@@ -363,7 +415,7 @@
     const mesa = $('cartasEnMesa');
     mesa.innerHTML = '';
     if(p.cartasJugadasBaza.length===0){
-      mesa.innerHTML = '<span style="opacity:.5;font-size:.85rem;">Esperando la primera carta...</span>';
+      mesa.innerHTML = '<span class="sin-cartas">Esperando la primera carta...</span>';
     } else {
       p.cartasJugadasBaza.forEach(j=>{
         const div = document.createElement('div');
