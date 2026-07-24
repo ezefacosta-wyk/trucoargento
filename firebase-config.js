@@ -6,11 +6,12 @@
 // de Realtime Database y en las restricciones de la API key.
 
 export const firebaseConfig = {
-  apiKey: "PEGAR_ACA",
-  authDomain: "PEGAR_ACA",
-  databaseURL: "PEGAR_ACA",
-  projectId: "PEGAR_ACA",
-  storageBucket: "PEGAR_ACA",
-  messagingSenderId: "PEGAR_ACA",
-  appId: "PEGAR_ACA"
+  apiKey: "AIzaSyBnAcU20fn3m0LECJAz_zhbrpcrfqlpt50",
+  authDomain: "truco-argento-game.firebaseapp.com",
+  databaseURL: "https://truco-argento-game-default-rtdb.firebaseio.com",
+  projectId: "truco-argento-game",
+  storageBucket: "truco-argento-game.firebasestorage.app",
+  messagingSenderId: "570580695631",
+  appId: "1:570580695631:web:53814805e35e3b95d3c83a",
+  measurementId: "G-XKJ8JHQCM0"
 };
