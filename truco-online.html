@@ -18,10 +18,29 @@
   h1 span{color:var(--sol); font-style:italic; font-weight:500;}
 
   .marcador{display:flex; gap:12px; margin-bottom:16px;}
-  .marcador .equipo{flex:1; background:rgba(0,0,0,.22); border:1px solid var(--line); border-radius:14px; padding:12px; text-align:center;}
+  .marcador .equipo{flex:1; background:rgba(0,0,0,.22); border:1px solid var(--line); border-radius:14px; padding:12px; text-align:center; position:relative; overflow:visible;}
   .marcador .equipo .nom{font-size:.78rem; opacity:.75;}
   .marcador .equipo .pts{font-family:'Fraunces',serif; font-weight:700; font-size:1.7rem; color:var(--sol);}
   .marcador .equipo.mio{border-color:var(--celeste);}
+  .puntos-flotantes{
+    position:absolute; top:-4px; right:10px;
+    color:var(--sol); font-weight:700; font-family:'Fraunces',serif;
+    font-size:1.15rem; pointer-events:none;
+    animation:flotar 1.4s ease forwards;
+  }
+  @keyframes flotar{ 0%{opacity:0; transform:translateY(4px);} 15%{opacity:1;} 100%{opacity:0; transform:translateY(-24px);} }
+
+  .mazo-central{position:relative; width:70px; height:100px; margin:0 auto 18px;}
+  .mazo-central .capa{
+    position:absolute; inset:0; border-radius:8px;
+    background:linear-gradient(145deg,#B4483A,#7C2E24);
+    border:2px solid var(--blanco);
+    box-shadow:0 6px 14px rgba(0,0,0,.4);
+  }
+  .mazo-central .capa::after{ content:''; position:absolute; inset:6px; border:1px solid rgba(251,249,244,.5); border-radius:4px; }
+  .mazo-central .capa:nth-child(1){transform:rotate(-6deg) translate(-3px,2px);}
+  .mazo-central .capa:nth-child(2){transform:rotate(4deg) translate(3px,-1px);}
+  .mazo-central .capa:nth-child(3){transform:rotate(0);}
 
   .mesa-redonda{
     position:relative;
@@ -47,6 +66,14 @@
 
   .pila-jugador{position:absolute; width:0; height:0;}
   .carta-en-pila{position:absolute; top:0; left:0; width:58px; height:84px; transition:transform .35s ease;}
+  .carta-en-pila.ganadora .carta{ box-shadow:0 0 0 3px var(--sol), 0 6px 16px rgba(252,191,73,.55); }
+  .carta-en-pila.ganadora::after{
+    content:'★'; position:absolute; top:-9px; right:-7px;
+    width:20px; height:20px; border-radius:50%;
+    background:var(--sol); color:var(--tinta);
+    font-size:.7rem; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,.4);
+  }
 
   .asiento-redondo{
     position:absolute; transform:translate(-50%,-50%);
@@ -153,6 +180,16 @@
     <button class="btn btn-sol" id="btnRepartirManual">Repartir cartas</button>
   </div>
 
+  <div id="pantallaReparto" class="pantalla-centro" style="display:none;">
+    <div class="mazo-central">
+      <div class="capa"></div>
+      <div class="capa"></div>
+      <div class="capa"></div>
+    </div>
+    <h2 id="textoReparto">Reparte...</h2>
+    <button class="btn btn-sol" id="btnRepartirYo" style="display:none;">Repartir cartas</button>
+  </div>
+
   <div id="juego" style="display:none;">
     <div class="marcador" id="marcador"></div>
 
@@ -171,6 +208,10 @@
     <div class="mano-jugador" id="manoJugador"></div>
 
     <div class="cantos" id="cantosDisponibles"></div>
+
+    <div style="text-align:center; margin-bottom:18px;">
+      <button class="btn btn-fantasma" id="btnMazo" style="border-color:#B4483A; color:#F2A29A;">Irse al mazo</button>
+    </div>
 
     <div class="log-cont">
       <div class="log-titulo">Qué pasó en la mesa</div>
@@ -290,10 +331,10 @@
     });
     if(miSeat===null){ $('cargando').innerHTML = '<h2>No estás sentado en esta mesa</h2>'; return; }
 
-    // si no existe la partida todavía, el jugador del asiento 0 la reparte
+    // si no existe la partida todavía, el jugador del asiento 0 arma la primera ronda en espera
     // (el primer repartidor de la mesa se sortea al azar)
     if(!data.partida && miSeat===0){
-      await set(ref(db,'salas/'+codigo+'/partida'), crearPartidaInicial(Math.floor(Math.random()*4), data.objetivo||30));
+      await set(ref(db,'salas/'+codigo+'/partida'), crearRondaEnEspera(Math.floor(Math.random()*4), data.objetivo||30));
     }
 
     $('cargando').style.display='none';
@@ -303,7 +344,7 @@
     $('btnRepartirManual').addEventListener('click', async ()=>{
       const s2 = await get(ref(db,'salas/'+codigo+'/partida'));
       if(!s2.exists()){
-        await set(ref(db,'salas/'+codigo+'/partida'), crearPartidaInicial(Math.floor(Math.random()*4), data.objetivo||30));
+        await set(ref(db,'salas/'+codigo+'/partida'), crearRondaEnEspera(Math.floor(Math.random()*4), data.objetivo||30));
       }
     });
 
@@ -327,7 +368,6 @@
       if(!d || !d.partida) return;
       partidaVista = true;
       $('esperandoReparto').style.display='none';
-      $('juego').style.display='block';
       render(d.partida);
     });
     onValue(ref(db,'salas/'+codigo+'/senas/'+miSeat), (s)=>{
@@ -339,19 +379,16 @@
     });
   }
 
-  function crearPartidaInicial(dealerIndex, objetivo){
-    const mazo = crearMazoMezclado();
-    const manoIndex = (dealerIndex+1)%4;
-    const manos={}, usadas={};
-    for(let s=0;s<4;s++){ manos[s]=[mazo.pop(),mazo.pop(),mazo.pop()]; usadas[s]=[]; }
+  function crearRondaEnEspera(dealerIndex, objetivo, puntosPrevios, logPrevio){
     return {
-      dealerIndex, manoIndex, turnoSeat:manoIndex, objetivo: objetivo||30,
-      manos, usadas,
+      fase: 'repartiendo',
+      dealerIndex, manoIndex:(dealerIndex+1)%4, turnoSeat:null, objetivo: objetivo||30,
+      manos:{}, usadas:{},
       cartasJugadasBaza:[], bazas:[], indiceBaza:0,
       trucoState:{nivel:0,valor:1,cantadoPor:null,pendiente:false},
       envidoState:{acumulado:0,chain:[],pendiente:false,cantadoPor:null,resuelto:false},
-      puntos:{"0":0,"1":0},
-      log:[], mostrarCartas:{}, terminada:false
+      puntos: puntosPrevios || {"0":0,"1":0},
+      log: logPrevio || [], mostrarCartas:{}, terminada:false
     };
   }
 
@@ -382,6 +419,7 @@
       const conectado = !presenciaData[s] || presenciaData[s].conectado!==false;
       const punto = conectado ? '🟢' : '🟡';
       const equipoClase = equipoDe(s)===0 ? 'equipo-a' : 'equipo-b';
+      const esDealer = p && p.fase==='jugando' && p.dealerIndex===s;
       const cantoActivo = (p && ((p.trucoState&&p.trucoState.pendiente) || (p.envidoState&&p.envidoState.pendiente)));
       const esTurno = (p && !p.terminada && !cantoActivo && p.turnoSeat===s) ? ' turno' : '';
       const esVos = s===miSeat ? ' vos' : '';
@@ -389,7 +427,7 @@
       div.className = 'asiento-redondo ' + equipoClase + esTurno + esVos;
       div.style.left = x+'px';
       div.style.top = y+'px';
-      div.innerHTML = `<div class="nom">${punto} ${escapeHtml(nom)}${s===miSeat?' (vos)':''}</div>`;
+      div.innerHTML = `<div class="nom">${punto} ${esDealer?'🂠 ':''}${escapeHtml(nom)}${s===miSeat?' (vos)':''}</div>`;
       mesa.appendChild(div);
     });
   }
@@ -438,8 +476,9 @@
         const dx = (seededRandom(seed+1)*2-1) * 12;       // pequeño corrimiento horizontal
         const dy = (seededRandom(seed+2)*2-1) * 12;       // pequeño corrimiento vertical
 
+        const esGanadora = p.bazas[i] && p.bazas[i].ganadorSeat === s;
         const div = document.createElement('div');
-        div.className = 'carta-en-pila';
+        div.className = 'carta-en-pila' + (esGanadora ? ' ganadora' : '');
         div.style.transform = `translate(-50%,-50%) translate(${dx}px, ${dy}px) rotate(${rot}deg)`;
         div.style.zIndex = String(i+1);
         div.innerHTML = cartaHTML(carta);
@@ -457,9 +496,59 @@
     }
   }
 
+  function mostrarFlotantePuntos(equipo, cantidad){
+    const cont = document.querySelector('.marcador .equipo[data-equipo="'+equipo+'"]');
+    if(!cont) return;
+    const span = document.createElement('div');
+    span.className = 'puntos-flotantes';
+    span.textContent = '+' + cantidad;
+    cont.appendChild(span);
+    setTimeout(()=>span.remove(), 1400);
+  }
+
+  function animarReparto(dealerSeat){
+    const mesa = $('mesaRedonda');
+    if(!mesa) return;
+    const w = mesa.clientWidth || 300;
+    const cx = w/2, cy = w/2;
+    const angleDealer = (-90 - dealerSeat*90) * Math.PI/180;
+    const deckX = cx + (w*0.12)*Math.cos(angleDealer);
+    const deckY = cy + (w*0.12)*Math.sin(angleDealer);
+    const ordenReparto = [1,2,3,4].map(i=>(dealerSeat+i)%4); // arranca en el jugador siguiente al que reparte
+    let delay = 0;
+    for(let vuelta=0; vuelta<3; vuelta++){
+      ordenReparto.forEach(seat=>{
+        setTimeout(()=>{
+          const angle = (-90 - seat*90) * Math.PI/180;
+          const destX = cx + (w*0.24)*Math.cos(angle);
+          const destY = cy + (w*0.24)*Math.sin(angle);
+          const div = document.createElement('div');
+          div.className = 'carta dorso';
+          div.style.position='absolute';
+          div.style.left = deckX+'px'; div.style.top = deckY+'px';
+          div.style.width='48px'; div.style.height='70px';
+          div.style.transform='translate(-50%,-50%)';
+          div.style.transition='left .4s ease, top .4s ease, transform .4s ease';
+          div.style.zIndex='100';
+          mesa.appendChild(div);
+          requestAnimationFrame(()=>{
+            requestAnimationFrame(()=>{
+              div.style.left = destX+'px';
+              div.style.top = destY+'px';
+              div.style.transform = 'translate(-50%,-50%) rotate(' + ((Math.random()*30)-15) + 'deg)';
+            });
+          });
+          setTimeout(()=>div.remove(), 480);
+        }, delay);
+        delay += 100;
+      });
+    }
+  }
+
   // ---------- Render ----------
   let ultimoRenderJSON = '';
   function normalizarPartida(p){
+    p.fase = p.fase || 'jugando';
     p.cartasJugadasBaza = p.cartasJugadasBaza || [];
     p.bazas = p.bazas || [];
     p.log = p.log || [];
@@ -471,6 +560,9 @@
     return p;
   }
 
+  let ultimaFaseVista = null;
+  let puntosAnteriores = null;
+
   function render(p){
     p = normalizarPartida(p);
     const json = JSON.stringify(p);
@@ -478,23 +570,56 @@
     ultimoRenderJSON = json;
     ultimaPartida = p;
 
+    if(p.terminada){
+      $('pantallaReparto').style.display='none';
+      $('juego').style.display='none';
+      $('finScreen').style.display='block';
+      const miEquipo0 = equipoDe(miSeat);
+      const gano = (p.puntos['0']||0)>(p.puntos['1']||0) ? 0 : 1;
+      $('finTexto').textContent = (gano===miEquipo0 ? '¡Ganó tu equipo!' : 'Ganó el equipo rival');
+      ultimaFaseVista = p.fase;
+      return;
+    }
+
+    if(p.fase === 'repartiendo'){
+      $('finScreen').style.display='none';
+      $('juego').style.display='none';
+      $('pantallaReparto').style.display='block';
+      const nombreDealer = uidToNombre[seatToUid[p.dealerIndex]] || ('Asiento '+p.dealerIndex);
+      $('textoReparto').textContent = 'Reparte ' + nombreDealer + (p.dealerIndex===miSeat ? ' (vos)' : '');
+      $('btnRepartirYo').style.display = (p.dealerIndex===miSeat) ? 'inline-block' : 'none';
+      ultimaFaseVista = p.fase;
+      return;
+    }
+
+    // fase === 'jugando'
+    if(ultimaFaseVista==='repartiendo'){
+      animarReparto(p.dealerIndex);
+    }
+    ultimaFaseVista = p.fase;
+
+    $('pantallaReparto').style.display='none';
+    $('finScreen').style.display='none';
+    $('juego').style.display='block';
+
     const miEquipo = equipoDe(miSeat);
     const companero = companeroDe(miSeat);
 
     $('marcador').innerHTML = `
-      <div class="equipo mio"><div class="nom">Tu equipo</div><div class="pts">${p.puntos[miEquipo]||0}</div></div>
-      <div class="equipo"><div class="nom">Rival</div><div class="pts">${p.puntos[(miEquipo+1)%2]||0}</div></div>`;
+      <div class="equipo mio" data-equipo="${miEquipo}"><div class="nom">Tu equipo</div><div class="pts">${p.puntos[miEquipo]||0}</div></div>
+      <div class="equipo" data-equipo="${(miEquipo+1)%2}"><div class="nom">Rival</div><div class="pts">${p.puntos[(miEquipo+1)%2]||0}</div></div>`;
+
+    if(puntosAnteriores){
+      [0,1].forEach(eq=>{
+        const antes = puntosAnteriores[eq]||0;
+        const ahora = p.puntos[eq]||0;
+        if(ahora>antes) mostrarFlotantePuntos(eq, ahora-antes);
+      });
+    }
+    puntosAnteriores = {0:p.puntos['0']||0, 1:p.puntos['1']||0};
 
     actualizarAsientosInfo();
     renderPilasDeCartas(p);
-
-    if(p.terminada){
-      $('juego').style.display='none';
-      $('finScreen').style.display='block';
-      const gano = p.puntos['0']>p.puntos['1'] ? 0 : 1;
-      $('finTexto').textContent = (gano===miEquipo ? '¡Ganó tu equipo!' : 'Ganó el equipo rival');
-      return;
-    }
 
     // panel del compañero: mostrar sus cartas si él activó el toggle para vos
     const companeroUid = seatToUid[companero];
@@ -620,6 +745,34 @@
     await guardarPartida(p);
   }
 
+  function repartirComoDealer(){
+    conPartida(async p=>{
+      if(p.fase!=='repartiendo') return;
+      if(p.dealerIndex!==miSeat) return; // solo reparte quien es mano de la ronda
+      const mazo = crearMazoMezclado();
+      const manos={}, usadas={};
+      for(let s=0;s<4;s++){ manos[s]=[mazo.pop(),mazo.pop(),mazo.pop()]; usadas[s]=[]; }
+      p.manos = manos; p.usadas = usadas;
+      p.turnoSeat = p.manoIndex;
+      p.fase = 'jugando';
+      agregarLog(p, 'Reparte ' + uidToNombre[uid] + '.', true);
+    });
+  }
+
+  function irseAlMazo(){
+    conPartida(async p=>{
+      if(p.fase!=='jugando' || p.terminada) return;
+      const miEq = equipoDe(miSeat);
+      const rivalEq = (miEq+1)%2;
+      const pts = p.trucoState.valor;
+      p.puntos[rivalEq] = (p.puntos[rivalEq]||0) + pts;
+      agregarLog(p, uidToNombre[uid] + ' se va al mazo. Suma ' + pts + ' punto(s) el equipo rival.', true);
+      p.trucoState.pendiente = false;
+      p.envidoState.pendiente = false;
+      finalizarSiCorresponde(p);
+    });
+  }
+
   function jugarCarta(idx){
     conPartida(async p=>{
       p.usadas[miSeat] = p.usadas[miSeat]||[];
@@ -640,7 +793,7 @@
         else if(jr===mejorCarta){ empate=true; }
       });
       const ganadorEquipo = empate ? null : equipoDe(mejorSeat);
-      p.bazas.push({ganadorEquipo});
+      p.bazas.push({ganadorEquipo, ganadorSeat: empate ? null : mejorSeat});
       agregarLog(p, empate ? 'Parda en esta baza.' : ('Se lleva la baza el equipo de ' + (uidToNombre[seatToUid[mejorSeat]]||'')), true);
 
       const ganadorMano = evaluarGanadorMano(p.bazas);
@@ -680,7 +833,7 @@
       return;
     }
     const nuevoDealer = (p.dealerIndex+1)%4;
-    Object.assign(p, crearPartidaInicial(nuevoDealer, objetivo));
+    Object.assign(p, crearRondaEnEspera(nuevoDealer, objetivo, p.puntos, p.log));
   }
 
   function cantarTruco(nivel){
@@ -755,6 +908,13 @@
   // ---------- Mostrar cartas al compañero ----------
   $('chkMostrar').addEventListener('change', async (e)=>{
     await update(ref(db,'salas/'+codigo+'/partida/mostrarCartas'), { [uid]: e.target.checked });
+  });
+
+  $('btnRepartirYo').addEventListener('click', repartirComoDealer);
+  $('btnMazo').addEventListener('click', ()=>{
+    if(confirm('¿Seguro que te querés ir al mazo? Tu equipo pierde el valor actual de la mano.')){
+      irseAlMazo();
+    }
   });
 
   // ---------- Señas ----------
