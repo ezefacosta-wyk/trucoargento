@@ -556,6 +556,9 @@
     p.manos = p.manos || {};
     p.mostrarCartas = p.mostrarCartas || {};
     p.puntos = p.puntos || {"0":0,"1":0};
+    p.trucoState = p.trucoState || {nivel:0,valor:1,cantadoPor:null,pendiente:false};
+    p.envidoState = p.envidoState || {acumulado:0,chain:[],pendiente:false,cantadoPor:null,resuelto:false};
+    p.envidoState.chain = p.envidoState.chain || [];
     for(let s=0;s<4;s++){ p.usadas[s] = p.usadas[s] || []; p.manos[s] = p.manos[s] || []; }
     return p;
   }
