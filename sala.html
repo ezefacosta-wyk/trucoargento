@@ -226,6 +226,7 @@
       }
       const data = snap.val();
       if(data.estado === 'jugando'){
+        onDisconnect(ref(db, 'salas/' + codigo + '/jugadores/' + uid)).cancel();
         window.location.href = 'truco-online.html?sala=' + codigo;
         return;
       }

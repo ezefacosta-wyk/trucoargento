@@ -219,7 +219,7 @@
 
   const params = new URLSearchParams(window.location.search);
   const codigo = (params.get('sala')||'').toUpperCase();
-  let uid=null, miSeat=null, seatToUid={}, uidToNombre={}, ultimaSenaVista=0;
+  let uid=null, miSeat=null, seatToUid={}, uidToNombre={}, ultimaSenaVista=0, presenciaData={};
 
   if(!codigo){ document.body.innerHTML = '<p style="color:#fff;text-align:center;margin-top:60px;">Falta el código de sala en la URL.</p>'; }
 
@@ -251,6 +251,21 @@
     $('cargando').style.display='none';
     $('juego').style.display='block';
     renderSenas();
+
+    // Presencia: si se desconecta (pantalla bloqueada, wifi, etc.) NO se lo saca de la mesa,
+    // solo se marca como desconectado hasta que vuelva. Se repone sola en cada reconexión.
+    const presenciaRef = ref(db,'salas/'+codigo+'/presencia/'+miSeat);
+    onValue(ref(db,'.info/connected'), (s)=>{
+      if(s.val()===true){
+        onDisconnect(presenciaRef).update({ conectado:false, ts: Date.now() });
+        set(presenciaRef, { conectado:true, ts: Date.now() });
+      }
+    });
+
+    onValue(ref(db,'salas/'+codigo+'/presencia'), s=>{
+      presenciaData = s.val() || {};
+      actualizarAsientosInfo();
+    });
 
     onValue(ref(db,'salas/'+codigo), (s)=>{
       const d = s.val();
@@ -291,6 +306,16 @@
     if(p.log.length>40) p.log.shift();
   }
 
+  function actualizarAsientosInfo(){
+    $('asientosInfo').innerHTML = [0,1,2,3].map(s=>{
+      const nom = uidToNombre[seatToUid[s]] || ('Asiento '+s);
+      const marca = s===miSeat ? ' class="yo"' : '';
+      const conectado = !presenciaData[s] || presenciaData[s].conectado!==false;
+      const punto = conectado ? '🟢' : '🟡';
+      return `<span${marca}>${punto} ${escapeHtml(nom)}${s===miSeat?' (vos)':''}</span>`;
+    }).join('');
+  }
+
   // ---------- Render ----------
   let ultimoRenderJSON = '';
   function render(p){
@@ -305,11 +330,7 @@
       <div class="equipo mio"><div class="nom">Tu equipo</div><div class="pts">${p.puntos[miEquipo]||0}</div></div>
       <div class="equipo"><div class="nom">Rival</div><div class="pts">${p.puntos[(miEquipo+1)%2]||0}</div></div>`;
 
-    $('asientosInfo').innerHTML = [0,1,2,3].map(s=>{
-      const nom = uidToNombre[seatToUid[s]] || ('Asiento '+s);
-      const marca = s===miSeat ? ' class="yo"' : '';
-      return `<span${marca}>${escapeHtml(nom)}${s===miSeat?' (vos)':''}</span>`;
-    }).join('');
+    actualizarAsientosInfo();
 
     const mesa = $('cartasEnMesa');
     mesa.innerHTML = '';
