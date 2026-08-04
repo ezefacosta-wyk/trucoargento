@@ -107,6 +107,9 @@
       <button class="btn btn-sol" id="btnArmarEquipos" style="display:none;">Armar equipos</button>
       <button class="btn btn-fantasma" id="btnCompletarBots" style="display:none;">Completar con bots</button>
       <button class="btn btn-fantasma" id="btnSalir">Salir de la mesa</button>
+      <p style="text-align:center; margin-top:16px;">
+        <a href="tirar-los-12.html" target="_blank" style="color:rgba(251,249,244,.55); font-size:.8rem;">¿Preferís la versión visual clásica de Tirar los 12? Abrirla en otra pestaña ↗</a>
+      </p>
     </div>
   </div>
 
@@ -116,6 +119,9 @@
         <p class="estado-espera" id="textoEleccion">¿Cómo armamos los equipos?</p>
         <button class="btn btn-sol" id="btnMetodoDoce">Tirar los 12</button>
         <button class="btn btn-fantasma" id="btnMetodoManual">Elegir equipos a mano</button>
+        <p style="text-align:center; margin-top:12px;">
+          <a href="tirar-los-12.html" target="_blank" style="color:rgba(251,249,244,.55); font-size:.8rem;">Ver la versión visual clásica ↗</a>
+        </p>
       </div>
 
       <div id="panelDoce12" style="display:none;">
@@ -317,14 +323,19 @@
   });
 
   $('btnCompletarBots').addEventListener('click', async ()=>{
-    const snap = await get(ref(db,'salas/'+codigoActual+'/jugadores'));
-    const jugadores = snap.val()||{};
-    const cantidad = Object.keys(jugadores).length;
-    const updates = {};
-    for(let i=cantidad; i<4; i++){
-      updates['bot-'+i] = { nombre:'Bot ' + (i+1), orden:i, esBot:true, unidoEn: Date.now() };
+    try{
+      const snap = await get(ref(db,'salas/'+codigoActual+'/jugadores'));
+      const jugadores = snap.val()||{};
+      const cantidad = Object.keys(jugadores).length;
+      const updates = {};
+      for(let i=cantidad; i<4; i++){
+        updates['bot-'+i] = { nombre:'Bot ' + (i+1), orden:i, esBot:true, unidoEn: Date.now() };
+      }
+      await update(ref(db,'salas/'+codigoActual+'/jugadores'), updates);
+    } catch(err){
+      console.error('Error al completar con bots:', err);
+      alert('No se pudieron agregar los bots: ' + err.message);
     }
-    await update(ref(db,'salas/'+codigoActual+'/jugadores'), updates);
   });
 
   $('btnCopiar').addEventListener('click', ()=>{
