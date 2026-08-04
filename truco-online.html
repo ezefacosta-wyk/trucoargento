@@ -115,8 +115,8 @@
   .carta.basto .num,.carta.basto svg{color:#3E6B3E;}
 
   .mano-en-mesa{position:absolute; width:0; height:0; z-index:10;}
-  .carta-jugable{width:64px; height:92px; cursor:pointer; transition:transform .15s; position:absolute; top:0; left:0; margin:-46px 0 0 -32px;}
-  .carta-jugable:hover{transform:translateY(-8px) !important;}
+  .carta-jugable{width:64px; height:92px; cursor:pointer; transition:transform .15s; position:absolute; top:0; left:0; margin:-46px 0 0 -32px; transform:var(--tf, none); z-index:var(--z, 1);}
+  .carta-jugable:hover{transform:var(--tf, none) translateY(-14px); z-index:40;}
   .carta-jugable.usada{opacity:.2; pointer-events:none;}
   .carta-jugable.bloqueada{opacity:.55; cursor:not-allowed; pointer-events:none;}
   .carta-jugable.bloqueada .sena-badge{pointer-events:auto; cursor:pointer;}
@@ -384,7 +384,13 @@
       botAccionEnCurso = true;
       setTimeout(()=>{
         const propio = mejorEnvidoDelEquipo(equipoDe(seatBot), p);
-        responderEnvido(propio >= 24);
+        const ultimo = p.envidoState.chain[p.envidoState.chain.length-1];
+        if(propio >= 31 && ultimo!=='falta'){
+          // mano muy fuerte: escala en vez de solo aceptar
+          cantarEnvido(ultimo==='real' ? 'falta' : 'real', seatBot);
+        } else {
+          responderEnvido(propio >= 24);
+        }
         botAccionEnCurso = false;
       }, 900 + Math.random()*700);
       return;
@@ -392,6 +398,18 @@
 
     if(esBotUid(seatToUid[p.turnoSeat])){
       const seatBot = p.turnoSeat;
+      const puedeCantarEnvido = !p.envidoState.resuelto && p.indiceBaza===0 && p.envidoState.chain.length===0;
+      if(puedeCantarEnvido){
+        const propio = calcularEnvido(p.manos[seatBot]||[]);
+        if(propio >= 27){
+          botAccionEnCurso = true;
+          setTimeout(()=>{
+            cantarEnvido('envido', seatBot);
+            botAccionEnCurso = false;
+          }, 700 + Math.random()*900);
+          return;
+        }
+      }
       botAccionEnCurso = true;
       setTimeout(()=>{
         const idx = elegirCartaBot(seatBot, p);
@@ -667,7 +685,8 @@
       const rot = (i - (n-1)/2) * 8;
       const div = document.createElement('div');
       div.className = 'carta-jugable' + (bloqueado ? ' bloqueada' : '');
-      div.style.transform = `translate(${offset}px, 0) rotate(${rot}deg)`;
+      div.style.setProperty('--tf', `translate(${offset}px,0) rotate(${rot}deg)`);
+      div.style.setProperty('--z', String(i+1));
       div.innerHTML = cartaHTML(o.c);
       if(!bloqueado){
         div.addEventListener('click', ()=>jugarCarta(o.idx));
@@ -1048,14 +1067,15 @@
       }
     });
   }
-  function cantarEnvido(tipo){
+  function cantarEnvido(tipo, actorSeat){
+    const seat = (actorSeat!==undefined) ? actorSeat : miSeat;
     conPartida(async p=>{
       const t = tipo==='envido' ? (p.envidoState.chain.includes('envido')?'envido2':'envido') : tipo;
       p.envidoState.chain.push(t);
-      p.envidoState.cantadoPor = miSeat;
+      p.envidoState.cantadoPor = seat;
       p.envidoState.pendiente = true;
       const nombres={envido:'Envido',envido2:'Envido',real:'Real envido',falta:'Falta envido'};
-      agregarLog(p, uidToNombre[uid] + ' canta ' + nombres[t] + '!', true);
+      agregarLog(p, (uidToNombre[seatToUid[seat]]||'Bot') + ' canta ' + nombres[t] + '!', true);
     });
   }
   function responderEnvido(quiere){
