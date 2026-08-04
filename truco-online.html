@@ -396,6 +396,19 @@
       return;
     }
 
+    if(p.envidoState.chain && p.envidoState.chain.length>0 && !p.envidoState.pendiente && !p.envidoState.resuelto){
+      const declarados = p.envidoState.declarados || {};
+      const botSinDeclarar = [0,1,2,3].find(s=> esBotUid(seatToUid[s]) && declarados[s]===undefined);
+      if(botSinDeclarar!==undefined){
+        botAccionEnCurso = true;
+        setTimeout(()=>{
+          declararTantos(botSinDeclarar);
+          botAccionEnCurso = false;
+        }, 500 + Math.random()*600);
+      }
+      return;
+    }
+
     if(esBotUid(seatToUid[p.turnoSeat])){
       const seatBot = p.turnoSeat;
       const puedeCantarEnvido = !p.envidoState.resuelto && p.indiceBaza===0 && p.envidoState.chain.length===0;
@@ -519,7 +532,7 @@
       manos:{}, usadas:{},
       cartasJugadasBaza:[], bazas:[], indiceBaza:0,
       trucoState:{nivel:0,valor:1,cantadoPor:null,pendiente:false},
-      envidoState:{acumulado:0,chain:[],pendiente:false,cantadoPor:null,resuelto:false},
+      envidoState:{acumulado:0,chain:[],pendiente:false,cantadoPor:null,resuelto:false,declarados:{}},
       puntos: puntosPrevios || {"0":0,"1":0},
       log: logPrevio || [], mostrarCartas:{}, terminada:false
     };
@@ -767,7 +780,8 @@
     p.mostrarCartas = p.mostrarCartas || {};
     p.puntos = p.puntos || {"0":0,"1":0};
     p.trucoState = p.trucoState || {nivel:0,valor:1,cantadoPor:null,pendiente:false};
-    p.envidoState = p.envidoState || {acumulado:0,chain:[],pendiente:false,cantadoPor:null,resuelto:false};
+    p.envidoState = p.envidoState || {acumulado:0,chain:[],pendiente:false,cantadoPor:null,resuelto:false,declarados:{}};
+    p.envidoState.declarados = p.envidoState.declarados || {};
     p.envidoState.chain = p.envidoState.chain || [];
     for(let s=0;s<4;s++){ p.usadas[s] = p.usadas[s] || []; p.manos[s] = p.manos[s] || []; }
     return p;
@@ -912,6 +926,20 @@
         if(u==='envido') boton(cont,'Envido', ()=>cantarEnvido('envido'));
         if(u==='envido'||u==='envido2') boton(cont,'Real envido', ()=>cantarEnvido('real'));
         boton(cont,'Falta envido', ()=>cantarEnvido('falta'));
+      }
+      return;
+    }
+    if(p.envidoState.chain && p.envidoState.chain.length>0 && !p.envidoState.pendiente && !p.envidoState.resuelto){
+      const declarados = p.envidoState.declarados || {};
+      if(declarados[miSeat]===undefined){
+        const miValor = calcularEnvido(p.manos[miSeat]||[]);
+        boton(cont, 'Cantar tus tantos (' + miValor + ')', ()=>declararTantos());
+      } else {
+        const faltan = [0,1,2,3].filter(s=>declarados[s]===undefined && !esBotUid(seatToUid[s]));
+        const txt = document.createElement('div');
+        txt.style.cssText = 'font-size:.8rem; opacity:.7; text-align:center; width:100%;';
+        txt.textContent = faltan.length>0 ? 'Esperando que canten sus tantos...' : 'Contando los tantos...';
+        cont.appendChild(txt);
       }
       return;
     }
@@ -1082,7 +1110,6 @@
     conPartida(async p=>{
       p.envidoState.pendiente=false;
       const cantadorEquipo = equipoDe(p.envidoState.cantadoPor);
-      const rivalEquipo = (cantadorEquipo+1)%2;
       const ultimo = p.envidoState.chain[p.envidoState.chain.length-1];
 
       if(!quiere){
@@ -1099,16 +1126,35 @@
       } else {
         p.envidoState.acumulado += (ultimo==='real'?3:2);
       }
-      // mejor envido de cada equipo
-      const envidoEquipo0 = Math.max(calcularEnvido(p.manos[0]), calcularEnvido(p.manos[2]));
-      const envidoEquipo1 = Math.max(calcularEnvido(p.manos[1]), calcularEnvido(p.manos[3]));
-      let ganador;
-      if(envidoEquipo0===envidoEquipo1) ganador = equipoDe(p.manoIndex);
-      else ganador = envidoEquipo0>envidoEquipo1 ? 0 : 1;
-      p.puntos[ganador] = (p.puntos[ganador]||0)+p.envidoState.acumulado;
-      agregarLog(p, 'Quieren el envido. Un equipo tenía ' + envidoEquipo0 + ', el otro ' + envidoEquipo1 + '. Gana ' + p.envidoState.acumulado + ' punto(s) el equipo ' + (ganador===0?'A':'B') + '.', true);
-      p.envidoState.resuelto = true;
-      chequearFinDePartida(p);
+      agregarLog(p, 'Quieren el envido. Ahora cada uno canta sus tantos.', true);
+      p.envidoState.declarados = {};
+    });
+  }
+
+  function declararTantos(actorSeat){
+    const seat = (actorSeat!==undefined) ? actorSeat : miSeat;
+    conPartida(async p=>{
+      if(!p.envidoState || p.envidoState.resuelto || p.envidoState.pendiente) return;
+      if(!p.envidoState.chain || p.envidoState.chain.length===0) return;
+      p.envidoState.declarados = p.envidoState.declarados || {};
+      if(p.envidoState.declarados[seat]!==undefined) return; // ya había cantado
+
+      const valor = calcularEnvido(p.manos[seat]||[]);
+      p.envidoState.declarados[seat] = valor;
+      agregarLog(p, (uidToNombre[seatToUid[seat]]||'Bot') + ' canta ' + valor + ' de envido.', true);
+
+      if(Object.keys(p.envidoState.declarados).length>=4){
+        const d = p.envidoState.declarados;
+        const envidoEquipo0 = Math.max(d[0]!==undefined?d[0]:-1, d[2]!==undefined?d[2]:-1);
+        const envidoEquipo1 = Math.max(d[1]!==undefined?d[1]:-1, d[3]!==undefined?d[3]:-1);
+        let ganador;
+        if(envidoEquipo0===envidoEquipo1) ganador = equipoDe(p.manoIndex);
+        else ganador = envidoEquipo0>envidoEquipo1 ? 0 : 1;
+        p.puntos[ganador] = (p.puntos[ganador]||0) + p.envidoState.acumulado;
+        agregarLog(p, 'Gana el envido el equipo ' + (ganador===0?'A':'B') + ' y suma ' + p.envidoState.acumulado + ' punto(s).', true);
+        p.envidoState.resuelto = true;
+        chequearFinDePartida(p);
+      }
     });
   }
 
