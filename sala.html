@@ -26,7 +26,7 @@
   .btn-fantasma{background:transparent; color:var(--blanco); border:1px solid var(--line);}
   .btn:disabled{opacity:.4; cursor:not-allowed;}
   .divisor{text-align:center; color:rgba(251,249,244,.4); font-size:.78rem; text-transform:uppercase; letter-spacing:.15em; margin:22px 0;}
-  #pantallaInicio, #pantallaSala, #pantallaError{display:none;}
+  #pantallaInicio, #pantallaSala, #pantallaEquipos, #pantallaError{display:none;}
   .activa{display:block !important;}
 
   .codigo-sala{
@@ -54,6 +54,8 @@
 
   .estado-espera{text-align:center; color:rgba(251,249,244,.6); font-size:.88rem; margin-bottom:16px;}
   .error-txt{color:#F2A29A; text-align:center; margin-bottom:14px;}
+  .log-item{font-size:.85rem; padding:6px 12px; border-radius:8px; background:rgba(0,0,0,.22); border:1px solid var(--line); margin-bottom:6px;}
+  .log-item.destacado{background:rgba(252,191,73,.15); border-color:rgba(252,191,73,.45); color:var(--sol); font-weight:600;}
 </style>
 </head>
 <body>
@@ -102,8 +104,38 @@
       <div class="estado-espera" id="estadoEspera">Esperando jugadores...</div>
       <ul class="lista-jugadores" id="listaJugadores"></ul>
 
-      <button class="btn btn-sol" id="btnIniciar" style="display:none;">Iniciar partida</button>
+      <button class="btn btn-sol" id="btnArmarEquipos" style="display:none;">Armar equipos</button>
+      <button class="btn btn-fantasma" id="btnCompletarBots" style="display:none;">Completar con bots</button>
       <button class="btn btn-fantasma" id="btnSalir">Salir de la mesa</button>
+    </div>
+  </div>
+
+  <div id="pantallaEquipos">
+    <div class="panel">
+      <div id="eleccionMetodo">
+        <p class="estado-espera" id="textoEleccion">¿Cómo armamos los equipos?</p>
+        <button class="btn btn-sol" id="btnMetodoDoce">Tirar los 12</button>
+        <button class="btn btn-fantasma" id="btnMetodoManual">Elegir equipos a mano</button>
+      </div>
+
+      <div id="panelDoce12" style="display:none;">
+        <p class="estado-espera" id="doce12Estado">Repartiendo...</p>
+        <button class="btn btn-sol" id="btnRepartirDoce" style="display:none;">Repartir carta</button>
+        <div class="log" id="doce12Log" style="max-height:180px; overflow-y:auto; margin:14px 0;"></div>
+      </div>
+
+      <div id="panelManual" style="display:none;">
+        <p class="estado-espera">Tocá un nombre para pasarlo al otro equipo.</p>
+        <div id="listaManual" style="margin-bottom:14px;"></div>
+        <button class="btn btn-sol" id="btnConfirmarManual" style="display:none;">Confirmar equipos</button>
+      </div>
+
+      <div id="resultadoEquipos" style="display:none;">
+        <p class="estado-espera">Equipos listos:</p>
+        <div id="textoEquipos" style="text-align:center; margin-bottom:16px; font-family:'Fraunces',serif; font-size:1.1rem;"></div>
+        <button class="btn btn-sol" id="btnIrAMesa" style="display:none;">Ir a mesa</button>
+        <p class="estado-espera" id="esperaAnfitrion" style="display:none;">Esperando que el anfitrión arranque la partida...</p>
+      </div>
     </div>
   </div>
 
@@ -131,7 +163,7 @@
   let salaListener = null;
 
   function mostrarPantalla(id){
-    ['pantallaInicio','pantallaSala','pantallaError'].forEach(p=>$(p).classList.remove('activa'));
+    ['pantallaInicio','pantallaSala','pantallaEquipos','pantallaError'].forEach(p=>$(p).classList.remove('activa'));
     $(id).classList.add('activa');
   }
 
@@ -230,29 +262,69 @@
         window.location.href = 'truco-online.html?sala=' + codigo;
         return;
       }
+
       const jugadores = data.jugadores || {};
+      const cantidad = Object.keys(jugadores).length;
+
+      // si el anfitrión se desconectó, el de menor "orden" que quede toma la posta
+      let esAnfitrion = data.anfitrion === uid;
+      if(!jugadores[data.anfitrion] && cantidad>0){
+        const candidatos = Object.entries(jugadores).filter(([,j])=>!j.esBot).sort((a,b)=>(a[1].orden||0)-(b[1].orden||0));
+        if(candidatos.length>0 && candidatos[0][0]===uid){
+          esAnfitrion = true;
+          update(ref(db,'salas/'+codigo), { anfitrion: uid });
+        }
+      }
+
+      // si alguien se fue en medio del armado de equipos, se limpia y se vuelve a la espera
+      if(data.estado==='armando_equipos' && cantidad<4){
+        if(esAnfitrion){
+          update(ref(db,'salas/'+codigo), { estado:'esperando', metodoEquipos:null, equipos:null, doce12:null, manualEquipos:null });
+        }
+        mostrarPantalla('pantallaSala');
+        $('estadoEspera').textContent = `Un jugador se fue — esperando de nuevo... (${cantidad}/4)`;
+        return;
+      }
+
+      if(data.estado === 'armando_equipos'){
+        mostrarPantalla('pantallaEquipos');
+        renderPantallaEquipos(data, jugadores, esAnfitrion);
+        return;
+      }
+
+      mostrarPantalla('pantallaSala');
       const lista = $('listaJugadores');
       lista.innerHTML = '';
       Object.entries(jugadores)
         .sort((a,b)=>(a[1].orden||0)-(b[1].orden||0))
         .forEach(([id, j])=>{
           const li = document.createElement('li');
-          li.innerHTML = `<span class="punto"></span> ${escapeHtml(j.nombre)} ${id===uid ? '<span class="vos">Vos</span>' : ''}`;
+          li.innerHTML = `<span class="punto"></span> ${escapeHtml(j.nombre)} ${j.esBot ? '🤖' : ''} ${id===uid ? '<span class="vos">Vos</span>' : ''}`;
           lista.appendChild(li);
         });
 
-      const cantidad = Object.keys(jugadores).length;
       $('estadoEspera').textContent = cantidad < 4
         ? `Esperando jugadores... (${cantidad}/4 — se juega 2 vs 2)`
-        : '¡Mesa completa! Listos para arrancar.';
+        : '¡Mesa completa! Listos para armar los equipos.';
 
-      const esAnfitrion = data.anfitrion === uid;
-      $('btnIniciar').style.display = (esAnfitrion && cantidad===4 && data.estado!=='jugando') ? 'block' : 'none';
+      $('btnArmarEquipos').style.display = (esAnfitrion && cantidad===4) ? 'block' : 'none';
+      $('btnCompletarBots').style.display = (esAnfitrion && cantidad>=1 && cantidad<4) ? 'block' : 'none';
     });
   }
 
-  $('btnIniciar').addEventListener('click', async ()=>{
-    await update(ref(db, 'salas/' + codigoActual), { estado: 'jugando' });
+  $('btnArmarEquipos').addEventListener('click', async ()=>{
+    await update(ref(db, 'salas/' + codigoActual), { estado: 'armando_equipos' });
+  });
+
+  $('btnCompletarBots').addEventListener('click', async ()=>{
+    const snap = await get(ref(db,'salas/'+codigoActual+'/jugadores'));
+    const jugadores = snap.val()||{};
+    const cantidad = Object.keys(jugadores).length;
+    const updates = {};
+    for(let i=cantidad; i<4; i++){
+      updates['bot-'+i] = { nombre:'Bot ' + (i+1), orden:i, esBot:true, unidoEn: Date.now() };
+    }
+    await update(ref(db,'salas/'+codigoActual+'/jugadores'), updates);
   });
 
   $('btnCopiar').addEventListener('click', ()=>{
@@ -278,6 +350,173 @@
     d.textContent = str;
     return d.innerHTML;
   }
+
+  // ==================== Armado de equipos ====================
+  let asignacionManualActual = {};
+  let doce12Local = null;
+
+  function renderPantallaEquipos(data, jugadores, esAnfitrion){
+    const metodo = data.metodoEquipos;
+    const equipos = data.equipos;
+
+    $('eleccionMetodo').style.display = (!metodo && !equipos) ? 'block' : 'none';
+    $('textoEleccion').textContent = esAnfitrion
+      ? '¿Cómo armamos los equipos?'
+      : 'Esperando que el anfitrión elija cómo armar los equipos...';
+    $('btnMetodoDoce').style.display = esAnfitrion ? 'inline-block' : 'none';
+    $('btnMetodoManual').style.display = esAnfitrion ? 'inline-block' : 'none';
+
+    $('panelDoce12').style.display = (metodo==='doce' && !equipos) ? 'block' : 'none';
+    $('panelManual').style.display = (metodo==='manual' && !equipos) ? 'block' : 'none';
+    $('resultadoEquipos').style.display = equipos ? 'block' : 'none';
+
+    if(metodo==='doce' && !equipos) renderDoce12(data.doce12||{historial:[],terminado:false}, jugadores, esAnfitrion);
+    if(metodo==='manual' && !equipos) renderManual(data.manualEquipos||{}, jugadores, esAnfitrion);
+    if(equipos) renderResultadoEquipos(equipos, jugadores, esAnfitrion);
+  }
+
+  function renderDoce12(doce12, jugadores, esAnfitrion){
+    const log = $('doce12Log');
+    log.innerHTML = '';
+    (doce12.historial||[]).forEach(item=>{
+      const div = document.createElement('div');
+      div.className = 'log-item' + (item.esDoce ? ' destacado' : '');
+      div.textContent = item.nombre + ' sacó ' + item.valor + ' de ' + item.palo + (item.esDoce ? ' 🎉' : '');
+      log.appendChild(div);
+    });
+    log.scrollTop = log.scrollHeight;
+    $('doce12Estado').textContent = doce12.terminado ? 'Salieron los dos 12 — armando los equipos.' : 'Se reparte una carta por vez.';
+    $('btnRepartirDoce').style.display = (esAnfitrion && !doce12.terminado) ? 'inline-block' : 'none';
+  }
+
+  function crearMazoDoce12(){
+    const VALORES = [1,2,3,4,5,6,7,10,11,12];
+    const PALOS = ['oro','copa','espada','basto'];
+    const c = [];
+    PALOS.forEach(p=>VALORES.forEach(v=>c.push({palo:p, valor:v})));
+    for(let i=c.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [c[i],c[j]]=[c[j],c[i]]; }
+    return c;
+  }
+
+  function asegurarDoce12Local(jugadores, historialPrevio){
+    if(doce12Local) return;
+    const orden = Object.keys(jugadores).sort((a,b)=>(jugadores[a].orden||0)-(jugadores[b].orden||0));
+    const docesEncontrados = [];
+    (historialPrevio||[]).forEach(h=>{ if(h.esDoce) docesEncontrados.push(h.uid); });
+    const activos = orden.filter(id=>!docesEncontrados.includes(id));
+    doce12Local = {
+      orden, activos, turnoIdx:(historialPrevio||[]).length,
+      historial:[...(historialPrevio||[])], docesEncontrados,
+      mazo: crearMazoDoce12()
+    };
+  }
+
+  async function repartirCartaDoce12(jugadores){
+    if(!doce12Local){
+      const snap = await get(ref(db,'salas/'+codigoActual+'/doce12'));
+      asegurarDoce12Local(jugadores, (snap.val()||{}).historial);
+    }
+    if(doce12Local.activos.length===0) return;
+    if(doce12Local.mazo.length===0) doce12Local.mazo = crearMazoDoce12();
+
+    let uidJugador=null, intentos=0;
+    while(intentos<20){
+      const cand = doce12Local.orden[doce12Local.turnoIdx % doce12Local.orden.length];
+      doce12Local.turnoIdx++;
+      if(doce12Local.activos.includes(cand)){ uidJugador=cand; break; }
+      intentos++;
+    }
+    if(!uidJugador) return;
+
+    const carta = doce12Local.mazo.pop();
+    const esDoce = carta.valor===12;
+    doce12Local.historial.push({ uid:uidJugador, nombre: jugadores[uidJugador].nombre, valor:carta.valor, palo:carta.palo, esDoce });
+
+    if(esDoce){
+      doce12Local.docesEncontrados.push(uidJugador);
+      doce12Local.activos = doce12Local.activos.filter(id=>id!==uidJugador);
+    }
+
+    const terminado = doce12Local.docesEncontrados.length>=2;
+    if(terminado){
+      const [d1,d2] = doce12Local.docesEncontrados;
+      const equipos = {};
+      equipos[d1]=0; equipos[d2]=0;
+      doce12Local.orden.forEach(id=>{ if(id!==d1 && id!==d2) equipos[id]=1; });
+      await update(ref(db,'salas/'+codigoActual), {
+        doce12: { historial: doce12Local.historial, terminado:true },
+        equipos
+      });
+    } else {
+      await update(ref(db,'salas/'+codigoActual+'/doce12'), { historial: doce12Local.historial, terminado:false });
+    }
+  }
+
+  function renderManual(manualEquipos, jugadores, esAnfitrion){
+    const cont = $('listaManual');
+    cont.innerHTML = '';
+    const ids = Object.keys(jugadores).sort((a,b)=>(jugadores[a].orden||0)-(jugadores[b].orden||0));
+
+    let asignacion = {...manualEquipos};
+    if(Object.keys(asignacion).length===0){
+      ids.forEach((id,i)=>{ asignacion[id] = i<2 ? 0 : 1; });
+    }
+    asignacionManualActual = asignacion;
+
+    ids.forEach(id=>{
+      const eq = asignacion[id];
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 14px;margin-bottom:8px;border-radius:10px;background:rgba(0,0,0,.2);border:1px solid ' + (eq===0?'var(--celeste)':'var(--sol)') + ';';
+      div.innerHTML = `<span>${escapeHtml(jugadores[id].nombre)}</span><span style="font-size:.75rem;opacity:.8;">Equipo ${eq===0?'A':'B'}</span>`;
+      if(esAnfitrion){
+        div.style.cursor='pointer';
+        div.addEventListener('click', async ()=>{
+          const nuevo = {...asignacion, [id]: eq===0?1:0};
+          await update(ref(db,'salas/'+codigoActual+'/manualEquipos'), nuevo);
+        });
+      }
+      cont.appendChild(div);
+    });
+
+    const cuentaA = ids.filter(id=>asignacion[id]===0).length;
+    const cuentaB = ids.filter(id=>asignacion[id]===1).length;
+    $('btnConfirmarManual').style.display = (esAnfitrion && cuentaA===2 && cuentaB===2) ? 'block' : 'none';
+  }
+
+  function renderResultadoEquipos(equipos, jugadores, esAnfitrion){
+    const nombreDe = id => jugadores[id] ? jugadores[id].nombre : '?';
+    const equipoA = Object.keys(equipos).filter(id=>equipos[id]===0).map(nombreDe);
+    const equipoB = Object.keys(equipos).filter(id=>equipos[id]===1).map(nombreDe);
+    $('textoEquipos').innerHTML = `Equipo A: ${equipoA.map(escapeHtml).join(' y ')}<br>Equipo B: ${equipoB.map(escapeHtml).join(' y ')}`;
+    $('btnIrAMesa').style.display = esAnfitrion ? 'block' : 'none';
+    $('esperaAnfitrion').style.display = esAnfitrion ? 'none' : 'block';
+  }
+
+  $('btnMetodoDoce').addEventListener('click', async ()=>{
+    const snap = await get(ref(db,'salas/'+codigoActual+'/jugadores'));
+    const jugadores = snap.val()||{};
+    doce12Local = null;
+    asegurarDoce12Local(jugadores, []);
+    await update(ref(db,'salas/'+codigoActual), { metodoEquipos:'doce' });
+  });
+
+  $('btnMetodoManual').addEventListener('click', async ()=>{
+    await update(ref(db,'salas/'+codigoActual), { metodoEquipos:'manual' });
+  });
+
+  $('btnRepartirDoce').addEventListener('click', async ()=>{
+    const snap = await get(ref(db,'salas/'+codigoActual+'/jugadores'));
+    const jugadores = snap.val()||{};
+    await repartirCartaDoce12(jugadores);
+  });
+
+  $('btnConfirmarManual').addEventListener('click', async ()=>{
+    await update(ref(db,'salas/'+codigoActual), { equipos: asignacionManualActual });
+  });
+
+  $('btnIrAMesa').addEventListener('click', async ()=>{
+    await update(ref(db,'salas/'+codigoActual), { estado:'jugando' });
+  });
 </script>
 </body>
 </html>

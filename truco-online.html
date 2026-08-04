@@ -305,6 +305,83 @@
   function companeroDe(seat){ return (seat+2)%4; }
   function escapeHtml(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
 
+  // ==================== IA de los bots ====================
+  function esBotUid(id){ return typeof id==='string' && id.indexOf('bot-')===0; }
+
+  function soyControladorDeBots(){
+    const humanos = [0,1,2,3].filter(s => seatToUid[s] && !esBotUid(seatToUid[s]));
+    if(humanos.length===0) return false;
+    return miSeat === Math.min(...humanos);
+  }
+
+  let botAccionEnCurso = false;
+
+  function elegirCartaBot(seat, p){
+    const mano = p.manos[seat]||[];
+    const usadas = p.usadas[seat]||[];
+    const disponibles = mano.map((c,idx)=>({c,idx})).filter(o=>!usadas.includes(o.idx));
+    if(disponibles.length===0) return null;
+    const jerarquiasEnMesa = p.cartasJugadasBaza.map(j=>jerarquia(j.carta));
+    const mejorEnMesa = jerarquiasEnMesa.length ? Math.max(...jerarquiasEnMesa) : -1;
+    const queGanan = disponibles.filter(o=>jerarquia(o.c) > mejorEnMesa);
+    if(queGanan.length>0){
+      queGanan.sort((a,b)=>jerarquia(a.c)-jerarquia(b.c)); // la más chica que alcance para ganar
+      return queGanan[0].idx;
+    }
+    disponibles.sort((a,b)=>jerarquia(a.c)-jerarquia(b.c)); // si no puede ganar, la más baja
+    return disponibles[0].idx;
+  }
+
+  function mejorEnvidoDelEquipo(equipo, p){
+    const seats = equipo===0 ? [0,2] : [1,3];
+    return Math.max(...seats.map(s=>calcularEnvido(p.manos[s]||[])));
+  }
+
+  function gestionarTurnoBots(p){
+    if(!soyControladorDeBots() || botAccionEnCurso || p.terminada) return;
+
+    if(p.trucoState.pendiente){
+      const cantadorEquipo = equipoDe(p.trucoState.cantadoPor);
+      const hayHumanoQuePuedaResponder = [0,1,2,3].some(s=> equipoDe(s)!==cantadorEquipo && seatToUid[s] && !esBotUid(seatToUid[s]));
+      if(hayHumanoQuePuedaResponder) return;
+      const seatBot = [0,1,2,3].find(s=> equipoDe(s)!==cantadorEquipo && esBotUid(seatToUid[s]));
+      if(seatBot===undefined) return;
+      botAccionEnCurso = true;
+      setTimeout(()=>{
+        // acepta si su mano tiene alguna carta fuerte (mata, siete, o un 3), si no declina
+        const tieneCartaFuerte = (p.manos[seatBot]||[]).some(c=>jerarquia(c)>=9);
+        responderTruco(tieneCartaFuerte || p.trucoState.nivel===1, seatBot);
+        botAccionEnCurso = false;
+      }, 900 + Math.random()*700);
+      return;
+    }
+
+    if(p.envidoState.pendiente){
+      const cantadorEquipo = equipoDe(p.envidoState.cantadoPor);
+      const hayHumanoQuePuedaResponder = [0,1,2,3].some(s=> equipoDe(s)!==cantadorEquipo && seatToUid[s] && !esBotUid(seatToUid[s]));
+      if(hayHumanoQuePuedaResponder) return;
+      const seatBot = [0,1,2,3].find(s=> equipoDe(s)!==cantadorEquipo && esBotUid(seatToUid[s]));
+      if(seatBot===undefined) return;
+      botAccionEnCurso = true;
+      setTimeout(()=>{
+        const propio = mejorEnvidoDelEquipo(equipoDe(seatBot), p);
+        responderEnvido(propio >= 24);
+        botAccionEnCurso = false;
+      }, 900 + Math.random()*700);
+      return;
+    }
+
+    if(esBotUid(seatToUid[p.turnoSeat])){
+      const seatBot = p.turnoSeat;
+      botAccionEnCurso = true;
+      setTimeout(()=>{
+        const idx = elegirCartaBot(seatBot, p);
+        if(idx!==null) jugarCarta(idx, seatBot);
+        botAccionEnCurso = false;
+      }, 700 + Math.random()*900);
+    }
+  }
+
   const params = new URLSearchParams(window.location.search);
   const codigo = (params.get('sala')||'').toUpperCase();
   let uid=null, miSeat=null, seatToUid={}, uidToNombre={}, ultimaSenaVista=0, presenciaData={};
@@ -325,10 +402,29 @@
     }
     const data = snap.val();
     const jugadores = data.jugadores || {};
-    Object.entries(jugadores).sort((a,b)=>(a[1].orden||0)-(b[1].orden||0)).forEach(([id,j],idx)=>{
-      seatToUid[idx]=id; uidToNombre[id]=j.nombre;
-      if(id===uid) miSeat=idx;
-    });
+
+    if(data.equipos && Object.keys(data.equipos).length===4){
+      // asientos según los equipos armados en la sala: equipo A -> 0 y 2 (enfrentados), equipo B -> 1 y 3
+      const porEquipo = {0:[], 1:[]};
+      Object.entries(jugadores).sort((a,b)=>(a[1].orden||0)-(b[1].orden||0)).forEach(([id])=>{
+        const eq = data.equipos[id];
+        if(eq===0 || eq===1) porEquipo[eq].push(id);
+      });
+      const asientosPorEquipo = {0:[0,2], 1:[1,3]};
+      [0,1].forEach(eq=>{
+        porEquipo[eq].forEach((id, i)=>{
+          const seat = asientosPorEquipo[eq][i];
+          seatToUid[seat]=id; uidToNombre[id]=jugadores[id].nombre;
+          if(id===uid) miSeat=seat;
+        });
+      });
+    } else {
+      // sin equipos armados (mesas viejas): se ubican por orden de llegada
+      Object.entries(jugadores).sort((a,b)=>(a[1].orden||0)-(b[1].orden||0)).forEach(([id,j],idx)=>{
+        seatToUid[idx]=id; uidToNombre[id]=j.nombre;
+        if(id===uid) miSeat=idx;
+      });
+    }
     if(miSeat===null){ $('cargando').innerHTML = '<h2>No estás sentado en esta mesa</h2>'; return; }
 
     // si no existe la partida todavía, el jugador del asiento 0 arma la primera ronda en espera
@@ -592,6 +688,10 @@
       $('textoReparto').textContent = 'Reparte ' + nombreDealer + (p.dealerIndex===miSeat ? ' (vos)' : '');
       $('btnRepartirYo').style.display = (p.dealerIndex===miSeat) ? 'inline-block' : 'none';
       ultimaFaseVista = p.fase;
+      if(esBotUid(seatToUid[p.dealerIndex]) && soyControladorDeBots() && !botAccionEnCurso){
+        botAccionEnCurso = true;
+        setTimeout(()=>{ repartirComoDealer(p.dealerIndex); botAccionEnCurso=false; }, 900);
+      }
       return;
     }
 
@@ -681,6 +781,7 @@
         : 'Turno de ' + (uidToNombre[seatToUid[p.turnoSeat]] || ('Asiento '+p.turnoSeat)) + (p.turnoSeat===miSeat?' (vos)':'');
 
     renderCantos(p);
+    gestionarTurnoBots(p);
 
     const logCont = $('log');
     logCont.innerHTML = '';
@@ -748,17 +849,18 @@
     await guardarPartida(p);
   }
 
-  function repartirComoDealer(){
+  function repartirComoDealer(actorSeat){
+    const seat = (actorSeat!==undefined) ? actorSeat : miSeat;
     conPartida(async p=>{
       if(p.fase!=='repartiendo') return;
-      if(p.dealerIndex!==miSeat) return; // solo reparte quien es mano de la ronda
+      if(p.dealerIndex!==seat) return; // solo reparte quien es mano de la ronda
       const mazo = crearMazoMezclado();
       const manos={}, usadas={};
       for(let s=0;s<4;s++){ manos[s]=[mazo.pop(),mazo.pop(),mazo.pop()]; usadas[s]=[]; }
       p.manos = manos; p.usadas = usadas;
       p.turnoSeat = p.manoIndex;
       p.fase = 'jugando';
-      agregarLog(p, 'Reparte ' + uidToNombre[uid] + '.', true);
+      agregarLog(p, 'Reparte ' + (uidToNombre[seatToUid[seat]]||'Bot') + '.', true);
     });
   }
 
@@ -776,16 +878,17 @@
     });
   }
 
-  function jugarCarta(idx){
+  function jugarCarta(idx, actorSeat){
+    const seat = (actorSeat!==undefined) ? actorSeat : miSeat;
     conPartida(async p=>{
-      p.usadas[miSeat] = p.usadas[miSeat]||[];
-      p.usadas[miSeat].push(idx);
-      const carta = p.manos[miSeat][idx];
-      p.cartasJugadasBaza.push({seat:miSeat, carta});
-      agregarLog(p, uidToNombre[uid] + ' juega ' + carta.valor + ' de ' + carta.palo + '.');
+      p.usadas[seat] = p.usadas[seat]||[];
+      p.usadas[seat].push(idx);
+      const carta = p.manos[seat][idx];
+      p.cartasJugadasBaza.push({seat:seat, carta});
+      agregarLog(p, (uidToNombre[seatToUid[seat]]||'Bot') + ' juega ' + carta.valor + ' de ' + carta.palo + '.');
 
       if(p.cartasJugadasBaza.length<4){
-        p.turnoSeat = (miSeat+1)%4;
+        p.turnoSeat = (seat+1)%4;
         return;
       }
       // baza completa: gana el equipo con la carta más alta
@@ -829,14 +932,19 @@
     finalizarSiCorresponde(p);
   }
 
-  function finalizarSiCorresponde(p){
+  function chequearFinDePartida(p){
     const objetivo = p.objetivo || 30;
     if((p.puntos['0']||0)>=objetivo || (p.puntos['1']||0)>=objetivo){
       p.terminada = true;
-      return;
+      return true;
     }
+    return false;
+  }
+
+  function finalizarSiCorresponde(p){
+    if(chequearFinDePartida(p)) return;
     const nuevoDealer = (p.dealerIndex+1)%4;
-    Object.assign(p, crearRondaEnEspera(nuevoDealer, objetivo, p.puntos, p.log));
+    Object.assign(p, crearRondaEnEspera(nuevoDealer, p.objetivo||30, p.puntos, p.log));
   }
 
   function cantarTruco(nivel){
@@ -849,17 +957,18 @@
       agregarLog(p, uidToNombre[uid] + ' canta ' + nombres[nivel-1] + '!', true);
     });
   }
-  function responderTruco(quiere){
+  function responderTruco(quiere, actorSeat){
+    const seat = (actorSeat!==undefined) ? actorSeat : miSeat;
     conPartida(async p=>{
       p.trucoState.pendiente=false;
       if(quiere){
         p.trucoState.valor = p.trucoState.nivel+1;
-        agregarLog(p, uidToNombre[uid] + ' quiere. La mano vale ' + p.trucoState.valor + '.', true);
+        agregarLog(p, (uidToNombre[seatToUid[seat]]||'Bot') + ' quiere. La mano vale ' + p.trucoState.valor + '.', true);
       } else {
         p.trucoState.valor = p.trucoState.nivel;
         const eq = equipoDe(p.trucoState.cantadoPor);
         p.puntos[eq] = (p.puntos[eq]||0)+p.trucoState.valor;
-        agregarLog(p, uidToNombre[uid] + ' no quiere. Suma ' + p.trucoState.valor + ' punto(s) el equipo rival.', true);
+        agregarLog(p, (uidToNombre[seatToUid[seat]]||'Bot') + ' no quiere. Suma ' + p.trucoState.valor + ' punto(s) el equipo rival.', true);
         finalizarSiCorresponde(p);
       }
     });
@@ -886,7 +995,7 @@
         p.puntos[cantadorEquipo] = (p.puntos[cantadorEquipo]||0)+pts;
         agregarLog(p, 'No quieren el envido. Suma ' + pts + ' punto(s) el equipo que cantó.', true);
         p.envidoState.resuelto = true;
-        finalizarSiCorresponde(p);
+        chequearFinDePartida(p);
         return;
       }
       if(ultimo==='falta'){
@@ -904,7 +1013,7 @@
       p.puntos[ganador] = (p.puntos[ganador]||0)+p.envidoState.acumulado;
       agregarLog(p, 'Quieren el envido. Un equipo tenía ' + envidoEquipo0 + ', el otro ' + envidoEquipo1 + '. Gana ' + p.envidoState.acumulado + ' punto(s) el equipo ' + (ganador===0?'A':'B') + '.', true);
       p.envidoState.resuelto = true;
-      finalizarSiCorresponde(p);
+      chequearFinDePartida(p);
     });
   }
 
@@ -913,7 +1022,7 @@
     await update(ref(db,'salas/'+codigo+'/partida/mostrarCartas'), { [uid]: e.target.checked });
   });
 
-  $('btnRepartirYo').addEventListener('click', repartirComoDealer);
+  $('btnRepartirYo').addEventListener('click', ()=>repartirComoDealer());
   $('btnMazo').addEventListener('click', ()=>{
     if(confirm('¿Seguro que te querés ir al mazo? Tu equipo pierde el valor actual de la mano.')){
       irseAlMazo();
