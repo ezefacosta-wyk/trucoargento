@@ -1,0 +1,6 @@
+EN ESTA CARPETA VAN LAS CARTAS
+#-oro.png
+#-copa.png
+#-espada.png
+#-basto.png
+dorso.png
