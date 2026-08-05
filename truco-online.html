@@ -102,6 +102,13 @@
   .asiento-redondo.vos .nom{outline:2px solid var(--blanco); outline-offset:1px;}
   @keyframes latido{ 0%,100%{opacity:1;} 50%{opacity:.6;} }
 
+  .tantos-declarados{
+    position:absolute; transform:translate(-50%,-50%); z-index:15;
+    background:var(--sol); color:var(--tinta); font-weight:700; font-family:'Fraunces',serif;
+    font-size:.85rem; padding:2px 11px; border-radius:999px;
+    box-shadow:0 3px 8px rgba(0,0,0,.35);
+  }
+
   .cartas-restantes{display:flex; gap:2px; justify-content:center; margin-top:4px;}
   .cartas-restantes .mini-dorso{width:12px; height:17px; border-radius:2px; background:linear-gradient(145deg,#B4483A,#7C2E24); border:1px solid var(--blanco);}
 
@@ -258,7 +265,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getDatabase, ref, set, get, update, onValue, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
   import { firebaseConfig } from "./js/firebase-config.js";
 
   const app = initializeApp(firebaseConfig);
@@ -585,7 +592,7 @@
   }
   window.addEventListener('resize', ()=>{
     actualizarAsientosInfo();
-    if(ultimaPartida) renderPilasDeCartas(ultimaPartida);
+    if(ultimaPartida){ renderPilasDeCartas(ultimaPartida); renderTantosDeclarados(ultimaPartida); }
   });
 
   // Aleatoriedad "fija": misma seed => siempre el mismo resultado,
@@ -719,6 +726,27 @@
     mesa.appendChild(cont);
   }
 
+  function renderTantosDeclarados(p){
+    const mesa = $('mesaRedonda');
+    if(!mesa) return;
+    mesa.querySelectorAll('.tantos-declarados').forEach(el=>el.remove());
+    if(!p.envidoState || !p.envidoState.declarados) return;
+    const w = mesa.clientWidth || 300;
+    const cx = w/2, cy = w/2;
+    const radio = w/2 - 8;
+    Object.entries(p.envidoState.declarados).forEach(([seatStr, valor])=>{
+      const s = parseInt(seatStr,10);
+      const angle = anguloRelativo(s);
+      const x = cx + radio*Math.cos(angle);
+      const y = cy + radio*Math.sin(angle);
+      const div = document.createElement('div');
+      div.className = 'tantos-declarados';
+      div.style.left = x+'px'; div.style.top = y+'px';
+      div.textContent = valor;
+      mesa.appendChild(div);
+    });
+  }
+
   function mostrarFlotantePuntos(equipo, cantidad){
     const cont = document.querySelector('.marcador .equipo[data-equipo="'+equipo+'"]');
     if(!cont) return;
@@ -820,8 +848,8 @@
     const companero = companeroDe(miSeat);
 
     $('marcador').innerHTML = `
-      <div class="equipo mio" data-equipo="${miEquipo}"><div class="nom">Tu equipo</div><div class="pts">${p.puntos[miEquipo]||0}</div></div>
-      <div class="equipo" data-equipo="${(miEquipo+1)%2}"><div class="nom">Rival</div><div class="pts">${p.puntos[(miEquipo+1)%2]||0}</div></div>`;
+      <div class="equipo mio" data-equipo="${miEquipo}"><div class="nom">Nosotros</div><div class="pts">${p.puntos[miEquipo]||0}</div></div>
+      <div class="equipo" data-equipo="${(miEquipo+1)%2}"><div class="nom">Ellos</div><div class="pts">${p.puntos[(miEquipo+1)%2]||0}</div></div>`;
 
     if(puntosAnteriores){
       [0,1].forEach(eq=>{
@@ -834,6 +862,7 @@
 
     actualizarAsientosInfo();
     renderPilasDeCartas(p);
+    renderTantosDeclarados(p);
 
     // overlay de reparto, integrado sobre la misma mesa (sin cambiar de pantalla)
     const overlay = $('overlayReparto');
@@ -886,7 +915,9 @@
           ? 'Respondiendo un canto de envido...'
           : 'Turno de ' + (uidToNombre[seatToUid[p.turnoSeat]] || ('Asiento '+p.turnoSeat)) + (p.turnoSeat===miSeat?' (vos)':'');
       renderCantos(p);
-      $('btnMazo').style.display = 'inline-block';
+      const esMiTurnoLibre = p.turnoSeat===miSeat && !p.trucoState.pendiente && !p.envidoState.pendiente
+        && !(p.envidoState.chain && p.envidoState.chain.length>0 && !p.envidoState.resuelto);
+      $('btnMazo').style.display = esMiTurnoLibre ? 'inline-block' : 'none';
     }
 
     gestionarTurnoBots(p);
@@ -989,6 +1020,7 @@
   function irseAlMazo(){
     conPartida(async p=>{
       if(p.fase!=='jugando' || p.terminada) return;
+      if(p.turnoSeat!==miSeat || p.trucoState.pendiente || p.envidoState.pendiente) return;
       const miEq = equipoDe(miSeat);
       const rivalEq = (miEq+1)%2;
       const pts = p.trucoState.valor;
@@ -1003,9 +1035,12 @@
   function jugarCarta(idx, actorSeat){
     const seat = (actorSeat!==undefined) ? actorSeat : miSeat;
     conPartida(async p=>{
+      if(p.fase!=='jugando') return; // la mano ya terminó o se está repartiendo de nuevo
       p.usadas[seat] = p.usadas[seat]||[];
+      if(p.usadas[seat].includes(idx)) return; // ya se había jugado esta carta
+      const carta = p.manos[seat] ? p.manos[seat][idx] : undefined;
+      if(!carta) return; // estado obsoleto (ej: click viejo después de repartir de nuevo)
       p.usadas[seat].push(idx);
-      const carta = p.manos[seat][idx];
       p.cartasJugadasBaza.push({seat:seat, carta});
       agregarLog(p, (uidToNombre[seatToUid[seat]]||'Bot') + ' juega ' + carta.valor + ' de ' + carta.palo + '.');
 
