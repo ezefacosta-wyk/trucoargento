@@ -221,7 +221,7 @@
   .mazo .capa{
     position:absolute; inset:0;
     border-radius:8px;
-    background:linear-gradient(145deg, var(--rojo-mate), #7C2E24);
+    background:url('images/cartas/dorso.png') center/cover no-repeat, linear-gradient(145deg, var(--rojo-mate), #7C2E24);
     border:2px solid var(--blanco);
     box-shadow:0 6px 14px rgba(0,0,0,0.4);
   }
@@ -303,6 +303,7 @@
     position:relative;
     box-shadow:0 4px 10px rgba(0,0,0,0.3);
   }
+  .carta-img{object-fit:cover;}
   .carta .num{
     font-family:'Fraunces', serif;
     font-weight:700;
@@ -637,11 +638,11 @@
 
   window.addEventListener('resize', ()=>{ if(zonaJuego.style.display!=='none') renderAsientos(); });
 
+  window.cartaFallback = function(img, valor, palo, simbolo){
+    img.outerHTML = '<div class="carta '+palo+'"><div class="num">'+valor+'</div><svg><use href="#'+simbolo+'"/></svg></div>';
+  };
   function cartaFrenteHTML(carta){
-    return `<div class="carta ${carta.palo}">
-      <div class="num">${carta.valor}</div>
-      <svg><use href="#${carta.simbolo}"/></svg>
-    </div>`;
+    return '<img src="images/cartas/'+carta.valor+'-'+carta.palo+'.png" class="carta carta-img" alt="'+carta.valor+' de '+carta.palo+'" onerror="cartaFallback(this,'+carta.valor+",'"+carta.palo+"','"+carta.simbolo+"')\">";
   }
 
   function siguienteJugadorActivo(){

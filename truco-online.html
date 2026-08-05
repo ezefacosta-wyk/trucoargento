@@ -33,7 +33,7 @@
   .mazo-central{position:relative; width:60px; height:86px; margin:0 auto 10px;}
   .mazo-central .capa{
     position:absolute; inset:0; border-radius:8px;
-    background:linear-gradient(145deg,#B4483A,#7C2E24);
+    background:url('images/cartas/dorso.png') center/cover no-repeat, linear-gradient(145deg,#B4483A,#7C2E24);
     border:2px solid var(--blanco);
     box-shadow:0 6px 14px rgba(0,0,0,.4);
   }
@@ -111,9 +111,17 @@
 
   .cartas-restantes{display:flex; gap:2px; justify-content:center; margin-top:4px;}
   .cartas-restantes .mini-dorso{width:12px; height:17px; border-radius:2px; background:linear-gradient(145deg,#B4483A,#7C2E24); border:1px solid var(--blanco);}
+  .sena-badge-mini{
+    position:absolute; top:-16px; left:50%; transform:translateX(-50%);
+    width:24px; height:24px; border-radius:50%;
+    background:var(--sol); border:2px solid var(--tapete-deep);
+    display:flex; align-items:center; justify-content:center;
+    font-size:.85rem; cursor:help; box-shadow:0 3px 8px rgba(0,0,0,.35);
+  }
 
   .carta{width:52px; height:76px; border-radius:6px; background:var(--blanco); color:var(--tinta); display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 4px 10px rgba(0,0,0,.3);}
-  .carta.dorso{background:linear-gradient(145deg,#B4483A,#7C2E24); border:2px solid var(--blanco);}
+  .carta-img{object-fit:cover;}
+  .carta.dorso{background:url('images/cartas/dorso.png') center/cover no-repeat, linear-gradient(145deg,#B4483A,#7C2E24); border:2px solid var(--blanco);}
   .carta .num{font-family:'Fraunces',serif; font-weight:700; font-size:.95rem;}
   .carta svg{width:15px; height:15px; margin-top:2px;}
   .carta.oro .num,.carta.oro svg{color:#B8860B;}
@@ -139,8 +147,12 @@
   .sena-badge:hover{transform:translateX(-50%) scale(1.12);}
   .sena-badge:active{transform:translateX(-50%) scale(0.95);}
 
-  .cartas-companero{display:flex; gap:10px; justify-content:center; margin-bottom:10px;}
-  .cartas-companero .carta{width:50px; height:74px; opacity:.85;}
+  .mano-companero-en-mesa{position:absolute; width:0; height:0; z-index:8;}
+  .carta-companero{
+    width:48px; height:70px; position:absolute; top:0; left:0; margin:-35px 0 0 -24px;
+    transition:transform .3s ease;
+  }
+  .carta-companero .carta{width:100%; height:100%;}
 
   .turno-info{text-align:center; font-size:.85rem; color:var(--sol); text-transform:uppercase; letter-spacing:.1em; margin-bottom:12px;}
 
@@ -150,11 +162,9 @@
 
   .cantos{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:14px;}
 
-  .panel-companero{
-    background:rgba(0,0,0,.2); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:80px;
-  }
-  .toggle-mostrar{display:flex; align-items:center; gap:10px; font-size:.85rem; margin-bottom:10px;}
-  .toggle-mostrar input{width:18px; height:18px;}
+  .toggle-mostrar-cont{text-align:center; margin-bottom:80px;}
+  .toggle-mostrar{display:inline-flex; align-items:center; gap:8px; font-size:.8rem; opacity:.8; cursor:pointer;}
+  .toggle-mostrar input{width:16px; height:16px;}
 
   .toast-sena{
     position:fixed; top:16px; left:50%; transform:translateX(-50%);
@@ -228,11 +238,10 @@
       <button class="btn btn-fantasma" id="btnMazo" style="border-color:#B4483A; color:#F2A29A;">Irse al mazo</button>
     </div>
 
-    <div class="panel-companero" id="panelCompanero">
+    <div class="toggle-mostrar-cont">
       <label class="toggle-mostrar">
         <input type="checkbox" id="chkMostrar"> Mostrarle mis cartas a mi compañero
       </label>
-      <div class="cartas-companero" id="cartasCompanero"></div>
     </div>
 
     <button id="chatBtn" aria-label="Ver jugadas">💬</button>
@@ -326,7 +335,12 @@
     for(let i=c.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [c[i],c[j]]=[c[j],c[i]]; }
     return c;
   }
-  function cartaHTML(c){ return `<div class="carta ${c.palo}"><div class="num">${c.valor}</div><svg><use href="#${c.s}"/></svg></div>`; }
+  window.cartaFallback = function(img, valor, palo, simbolo){
+    img.outerHTML = '<div class="carta '+palo+'"><div class="num">'+valor+'</div><svg><use href="#'+simbolo+'"/></svg></div>';
+  };
+  function cartaHTML(c){
+    return '<img src="images/cartas/'+c.valor+'-'+c.palo+'.png" class="carta carta-img" alt="'+c.valor+' de '+c.palo+'" onerror="cartaFallback(this,'+c.valor+",'"+c.palo+"','"+c.s+"')\">";
+  }
   function equipoDe(seat){ return seat%2; }
   function companeroDe(seat){ return (seat+2)%4; }
   function escapeHtml(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
@@ -441,7 +455,7 @@
 
   const params = new URLSearchParams(window.location.search);
   const codigo = (params.get('sala')||'').toUpperCase();
-  let uid=null, miSeat=null, seatToUid={}, uidToNombre={}, ultimaSenaVista=0, presenciaData={};
+  let uid=null, miSeat=null, seatToUid={}, uidToNombre={}, ultimaSenaVista=0, presenciaData={}, ultimaSenaRecibida=null;
 
   if(!codigo){ document.body.innerHTML = '<p style="color:#fff;text-align:center;margin-top:60px;">Falta el código de sala en la URL.</p>'; }
 
@@ -551,7 +565,9 @@
       const sena = s.val();
       if(sena && sena.ts>ultimaSenaVista){
         ultimaSenaVista = sena.ts;
+        ultimaSenaRecibida = sena;
         mostrarToast(sena);
+        if(ultimaPartida) renderPilasDeCartas(ultimaPartida);
       }
     });
   }
@@ -633,11 +649,15 @@
     mesa.querySelectorAll('.centro-mesa').forEach(el=>el.remove());
     mesa.querySelectorAll('.cartas-restantes').forEach(el=>el.remove());
     mesa.querySelectorAll('.mano-en-mesa').forEach(el=>el.remove());
+    mesa.querySelectorAll('.mano-companero-en-mesa').forEach(el=>el.remove());
 
     const w = mesa.clientWidth || 300;
     const cx = w/2, cy = w/2;
     const radioPila = w * 0.20;
     let totalCartas = 0;
+    const seatCompanero = companeroDe(miSeat);
+    const companeroUid = seatToUid[seatCompanero];
+    const companeroMeMuestra = !!(companeroUid && p.mostrarCartas && p.mostrarCartas[companeroUid]);
 
     for(let s=0;s<4;s++){
       const usadas = p.usadas[s]||[];
@@ -673,23 +693,34 @@
         mesa.appendChild(cont);
       }
 
-      // dorsos chicos indicando cuántas cartas le quedan a cada rival/compañero
+      // el compañero, si te está mostrando: cartas reveladas en su lugar. Si no: dorsitos (+ la seña si mandó una)
       const restantes = 3 - usadas.length;
       if(s!==miSeat && restantes>0 && p.fase==='jugando'){
-        const radioRestantes = w*0.37;
-        const rx = cx + radioRestantes*Math.cos(angle);
-        const ry = cy + radioRestantes*Math.sin(angle);
-        const cont2 = document.createElement('div');
-        cont2.className = 'cartas-restantes';
-        cont2.style.position='absolute';
-        cont2.style.left = rx+'px'; cont2.style.top = ry+'px';
-        cont2.style.transform = 'translate(-50%,-50%)';
-        for(let k=0;k<restantes;k++){
-          const d = document.createElement('div');
-          d.className='mini-dorso';
-          cont2.appendChild(d);
+        if(s===seatCompanero && companeroMeMuestra){
+          renderManoCompaneroEnMesa(p, seatCompanero, angle);
+        } else {
+          const radioRestantes = w*0.37;
+          const rx = cx + radioRestantes*Math.cos(angle);
+          const ry = cy + radioRestantes*Math.sin(angle);
+          const cont2 = document.createElement('div');
+          cont2.className = 'cartas-restantes';
+          cont2.style.position='absolute';
+          cont2.style.left = rx+'px'; cont2.style.top = ry+'px';
+          cont2.style.transform = 'translate(-50%,-50%)';
+          for(let k=0;k<restantes;k++){
+            const d = document.createElement('div');
+            d.className='mini-dorso';
+            cont2.appendChild(d);
+          }
+          if(s===seatCompanero && ultimaSenaRecibida){
+            const badge = document.createElement('div');
+            badge.className = 'sena-badge-mini';
+            badge.textContent = ultimaSenaRecibida.emoji;
+            badge.title = 'Tu compañero te avisó: ' + ultimaSenaRecibida.txt;
+            cont2.appendChild(badge);
+          }
+          mesa.appendChild(cont2);
         }
-        mesa.appendChild(cont2);
       }
     }
 
@@ -701,6 +732,35 @@
       msg.innerHTML = '<span class="sin-cartas">Esperando la primera carta...</span>';
       mesa.appendChild(msg);
     }
+  }
+
+  function renderManoCompaneroEnMesa(p, seatCompanero, angle){
+    const mesa = $('mesaRedonda');
+    if(!mesa) return;
+    const w = mesa.clientWidth || 300;
+    const cx = w/2, cy = w/2;
+    const radio = w*0.37;
+    const baseX = cx + radio*Math.cos(angle);
+    const baseY = cy + radio*Math.sin(angle);
+
+    const cont = document.createElement('div');
+    cont.className = 'mano-companero-en-mesa';
+    cont.style.left = baseX+'px';
+    cont.style.top = baseY+'px';
+
+    const usadasComp = p.usadas[seatCompanero]||[];
+    const disponibles = (p.manos[seatCompanero]||[]).map((c,idx)=>({c,idx})).filter(o=>!usadasComp.includes(o.idx));
+    const n = disponibles.length;
+    disponibles.forEach((o,i)=>{
+      const offset = (i - (n-1)/2) * 26;
+      const div = document.createElement('div');
+      div.className = 'carta-companero';
+      div.style.transform = `translate(${offset}px,0)`;
+      div.innerHTML = cartaHTML(o.c);
+      cont.appendChild(div);
+    });
+
+    mesa.appendChild(cont);
   }
 
   function renderManoPropiaEnMesa(p){
@@ -863,6 +923,9 @@
     $('juego').style.display='block';
 
     const repartiendoAhora = p.fase === 'repartiendo';
+    if(repartiendoAhora && ultimaFaseVista!=='repartiendo'){
+      ultimaSenaRecibida = null;
+    }
     if(!repartiendoAhora && ultimaFaseVista==='repartiendo'){
       animarReparto(p.dealerIndex);
     }
@@ -901,29 +964,6 @@
       }
     } else {
       overlay.style.display='none';
-    }
-
-    // panel del compañero: mostrar sus cartas si él activó el toggle para vos
-    const companeroUid = seatToUid[companero];
-    const cartasCompCont = $('cartasCompanero');
-    cartasCompCont.innerHTML = '';
-    if(p.mostrarCartas && p.mostrarCartas[companeroUid]){
-      const cartasComp = p.manos[companero]||[];
-      if(cartasComp.length===0){
-        cartasCompCont.innerHTML = '<span style="opacity:.5;font-size:.8rem;">Sin cartas.</span>';
-      } else {
-        cartasComp.forEach((c,idx)=>{
-          const usada = (p.usadas[companero]||[]).includes(idx);
-          const div = document.createElement('div');
-          div.style.opacity = usada?0.25:0.9;
-          div.style.width = '50px';
-          div.style.height = '74px';
-          div.innerHTML = cartaHTML(c);
-          cartasCompCont.appendChild(div);
-        });
-      }
-    } else {
-      cartasCompCont.innerHTML = '<span style="opacity:.45;font-size:.78rem;">Tu compañero no te está mostrando sus cartas.</span>';
     }
 
     $('chkMostrar').checked = !!(p.mostrarCartas && p.mostrarCartas[uid]);
