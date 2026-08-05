@@ -238,7 +238,7 @@
       <button class="btn btn-fantasma" id="btnMazo" style="border-color:#B4483A; color:#F2A29A;">Irse al mazo</button>
     </div>
 
-    <div class="toggle-mostrar-cont">
+    <div class="toggle-mostrar-cont" id="toggleMostrarCont">
       <label class="toggle-mostrar">
         <input type="checkbox" id="chkMostrar"> Mostrarle mis cartas a mi compañero
       </label>
@@ -657,7 +657,8 @@
     let totalCartas = 0;
     const seatCompanero = companeroDe(miSeat);
     const companeroUid = seatToUid[seatCompanero];
-    const companeroMeMuestra = !!(companeroUid && p.mostrarCartas && p.mostrarCartas[companeroUid]);
+    const companeroEsBot = !!(companeroUid && esBotUid(companeroUid));
+    const companeroMeMuestra = companeroEsBot || !!(companeroUid && p.mostrarCartas && p.mostrarCartas[companeroUid]);
 
     for(let s=0;s<4;s++){
       const usadas = p.usadas[s]||[];
@@ -967,6 +968,7 @@
     }
 
     $('chkMostrar').checked = !!(p.mostrarCartas && p.mostrarCartas[uid]);
+    $('toggleMostrarCont').style.display = companeroEsBot ? 'none' : 'block';
 
     if(repartiendoAhora){
       $('turnoInfo').textContent = '';
