@@ -462,16 +462,24 @@
 
     if(data.equipos && Object.keys(data.equipos).length===4){
       // asientos según los equipos armados en la sala: equipo A -> 0 y 2 (enfrentados), equipo B -> 1 y 3
+      // se recorre "equipos" (no "jugadores") porque es la fuente de verdad de quién quedó en la mesa
       const porEquipo = {0:[], 1:[]};
-      Object.entries(jugadores).sort((a,b)=>(a[1].orden||0)-(b[1].orden||0)).forEach(([id])=>{
-        const eq = data.equipos[id];
-        if(eq===0 || eq===1) porEquipo[eq].push(id);
-      });
+      Object.keys(data.equipos)
+        .sort((a,b)=>{
+          const oa = jugadores[a] ? (jugadores[a].orden||0) : 99;
+          const ob = jugadores[b] ? (jugadores[b].orden||0) : 99;
+          return oa-ob;
+        })
+        .forEach(id=>{
+          const eq = data.equipos[id];
+          if(eq===0 || eq===1) porEquipo[eq].push(id);
+        });
       const asientosPorEquipo = {0:[0,2], 1:[1,3]};
       [0,1].forEach(eq=>{
         porEquipo[eq].forEach((id, i)=>{
           const seat = asientosPorEquipo[eq][i];
-          seatToUid[seat]=id; uidToNombre[id]=jugadores[id].nombre;
+          seatToUid[seat]=id;
+          uidToNombre[id] = jugadores[id] ? jugadores[id].nombre : (id.indexOf('bot-')===0 ? 'Bot' : 'Jugador');
           if(id===uid) miSeat=seat;
         });
       });

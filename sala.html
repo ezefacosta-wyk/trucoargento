@@ -303,7 +303,7 @@
     $('linkInvitar').value = url;
 
     if(salaListener) salaListener();
-    salaListener = onValue(ref(db, 'salas/' + codigo), (snap)=>{
+    salaListener = onValue(ref(db, 'salas/' + codigo), async (snap)=>{
       if(!snap.exists()){
         mostrarPantalla('pantallaError');
         $('errorTexto').textContent = 'La mesa se cerró.';
@@ -311,7 +311,7 @@
       }
       const data = snap.val();
       if(data.estado === 'jugando'){
-        onDisconnect(ref(db, 'salas/' + codigo + '/jugadores/' + uid)).cancel();
+        await onDisconnect(ref(db, 'salas/' + codigo + '/jugadores/' + uid)).cancel();
         window.location.href = 'truco-online.html?sala=' + codigo;
         return;
       }
