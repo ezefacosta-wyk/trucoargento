@@ -482,7 +482,20 @@
         if(id===uid) miSeat=idx;
       });
     }
-    if(miSeat===null){ $('cargando').innerHTML = '<h2>No estás sentado en esta mesa</h2>'; return; }
+    if(miSeat===null){
+      const diag = {
+        miUid: uid,
+        jugadoresKeys: Object.keys(jugadores),
+        equipos: data.equipos || null,
+        anfitrion: data.anfitrion
+      };
+      console.log('Diagnóstico "no estás sentado":', diag);
+      $('cargando').innerHTML = '<h2>No estás sentado en esta mesa</h2>'
+        + '<p style="opacity:.7; font-size:.85rem; margin:10px 0 18px;">Tu usuario no aparece en los equipos armados para esta partida.</p>'
+        + '<a href="sala.html?sala=' + codigo + '" class="btn btn-fantasma" style="margin-bottom:16px; display:inline-block;">Volver a la sala</a>'
+        + '<pre style="text-align:left; font-size:.72rem; background:rgba(0,0,0,.3); padding:10px; border-radius:8px; overflow-x:auto; max-width:100%; white-space:pre-wrap;">' + escapeHtml(JSON.stringify(diag, null, 2)) + '</pre>';
+      return;
+    }
 
     // si no existe la partida todavía, el jugador del asiento 0 arma la primera ronda en espera
     // (el primer repartidor de la mesa se sortea al azar)
