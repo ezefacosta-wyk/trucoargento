@@ -30,7 +30,7 @@
   }
   @keyframes flotar{ 0%{opacity:0; transform:translateY(4px);} 15%{opacity:1;} 100%{opacity:0; transform:translateY(-24px);} }
 
-  .mazo-central{position:relative; width:60px; height:86px; margin:0 auto 10px;}
+  .mazo-central{position:relative; width:72px; height:104px; margin:0 auto 10px;}
   .mazo-central .capa{
     position:absolute; inset:0; border-radius:8px;
     background:url('images/cartas/dorso.png') center/cover no-repeat, linear-gradient(145deg,#B4483A,#7C2E24);
@@ -45,7 +45,7 @@
   .mesa-wrap{position:relative; margin:10px auto 18px;}
   .mesa-redonda{
     position:relative;
-    width:min(460px, 94vw); height:min(460px, 94vw);
+    width:min(560px, 96vw); height:min(560px, 96vw);
     margin:0 auto;
     border-radius:50%;
     background:
@@ -119,29 +119,29 @@
     font-size:.85rem; cursor:help; box-shadow:0 3px 8px rgba(0,0,0,.35);
   }
 
-  .carta{width:52px; height:76px; border-radius:6px; background:var(--blanco); color:var(--tinta); display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 4px 10px rgba(0,0,0,.3);}
+  .carta{width:66px; height:97px; border-radius:7px; background:var(--blanco); color:var(--tinta); display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 4px 10px rgba(0,0,0,.3);}
   .carta-img{object-fit:cover;}
   .carta.dorso{background:url('images/cartas/dorso.png') center/cover no-repeat, linear-gradient(145deg,#B4483A,#7C2E24); border:2px solid var(--blanco);}
-  .carta .num{font-family:'Fraunces',serif; font-weight:700; font-size:.95rem;}
-  .carta svg{width:15px; height:15px; margin-top:2px;}
+  .carta .num{font-family:'Fraunces',serif; font-weight:700; font-size:1.15rem;}
+  .carta svg{width:19px; height:19px; margin-top:2px;}
   .carta.oro .num,.carta.oro svg{color:#B8860B;}
   .carta.copa .num,.carta.copa svg{color:#B4483A;}
   .carta.espada .num,.carta.espada svg{color:#2E4B6B;}
   .carta.basto .num,.carta.basto svg{color:#3E6B3E;}
 
   .mano-en-mesa{position:absolute; width:0; height:0; z-index:10;}
-  .carta-jugable{width:64px; height:92px; cursor:pointer; transition:transform .15s; position:absolute; top:0; left:0; margin:-46px 0 0 -32px; transform:var(--tf, none); z-index:var(--z, 1);}
+  .carta-jugable{width:80px; height:117px; cursor:pointer; transition:transform .15s; position:absolute; top:0; left:0; margin:-58px 0 0 -40px; transform:var(--tf, none); z-index:var(--z, 1);}
   .carta-jugable:hover{transform:var(--tf, none) translateY(-14px); z-index:40;}
   .carta-jugable.usada{opacity:.2; pointer-events:none;}
   .carta-jugable.bloqueada{opacity:.55; cursor:not-allowed; pointer-events:none;}
   .carta-jugable.bloqueada .sena-badge{pointer-events:auto; cursor:pointer;}
   .carta-jugable .carta{width:100%; height:100%;}
   .sena-badge{
-    position:absolute; top:-16px; left:50%; transform:translateX(-50%);
-    width:28px; height:28px; border-radius:50%;
+    position:absolute; top:-18px; left:50%; transform:translateX(-50%);
+    width:32px; height:32px; border-radius:50%;
     background:var(--sol); border:2px solid var(--tapete-deep);
     display:flex; align-items:center; justify-content:center;
-    font-size:.95rem; cursor:pointer; z-index:5;
+    font-size:1.1rem; cursor:pointer; z-index:5;
     box-shadow:0 3px 8px rgba(0,0,0,.35);
   }
   .sena-badge:hover{transform:translateX(-50%) scale(1.12);}
@@ -149,7 +149,7 @@
 
   .mano-companero-en-mesa{position:absolute; width:0; height:0; z-index:8;}
   .carta-companero{
-    width:48px; height:70px; position:absolute; top:0; left:0; margin:-35px 0 0 -24px;
+    width:58px; height:85px; position:absolute; top:0; left:0; margin:-42px 0 0 -29px;
     transition:transform .3s ease;
   }
   .carta-companero .carta{width:100%; height:100%;}
@@ -752,7 +752,7 @@
     const disponibles = (p.manos[seatCompanero]||[]).map((c,idx)=>({c,idx})).filter(o=>!usadasComp.includes(o.idx));
     const n = disponibles.length;
     disponibles.forEach((o,i)=>{
-      const offset = (i - (n-1)/2) * 26;
+      const offset = (i - (n-1)/2) * 32;
       const div = document.createElement('div');
       div.className = 'carta-companero';
       div.style.transform = `translate(${offset}px,0)`;
@@ -785,7 +785,7 @@
     const disponibles = (p.manos[miSeat]||[]).map((c,idx)=>({c,idx})).filter(o=>!usadasMias.includes(o.idx));
     const n = disponibles.length;
     disponibles.forEach((o,i)=>{
-      const offset = (i - (n-1)/2) * 34;
+      const offset = (i - (n-1)/2) * 42;
       const rot = (i - (n-1)/2) * 8;
       const div = document.createElement('div');
       div.className = 'carta-jugable' + (bloqueado ? ' bloqueada' : '');
