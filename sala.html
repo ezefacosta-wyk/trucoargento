@@ -411,6 +411,7 @@
 
   // ==================== Armado de equipos ====================
   let asignacionManualActual = {};
+  let jugadoresManualActual = {};
   let doce12Local = null;
 
   function renderPantallaEquipos(data, jugadores, esAnfitrion){
@@ -563,8 +564,9 @@
     if(terminado){
       const [d1,d2] = doce12Local.docesEncontrados;
       const equipos = {};
-      equipos[d1]=0; equipos[d2]=0;
-      doce12Local.orden.forEach(id=>{ if(id!==d1 && id!==d2) equipos[id]=1; });
+      equipos[d1] = {equipo:0, nombre: jugadores[d1].nombre};
+      equipos[d2] = {equipo:0, nombre: jugadores[d2].nombre};
+      doce12Local.orden.forEach(id=>{ if(id!==d1 && id!==d2) equipos[id] = {equipo:1, nombre: jugadores[id].nombre}; });
       await update(ref(db,'salas/'+codigoActual), {
         doce12: { historial: doce12Local.historial, terminado:true },
         equipos
@@ -577,6 +579,7 @@
   function renderManual(manualEquipos, jugadores, esAnfitrion){
     const cont = $('listaManual');
     cont.innerHTML = '';
+    jugadoresManualActual = jugadores;
     const ids = Object.keys(jugadores).sort((a,b)=>(jugadores[a].orden||0)-(jugadores[b].orden||0));
 
     let asignacion = {...manualEquipos};
@@ -606,9 +609,10 @@
   }
 
   function renderResultadoEquipos(equipos, jugadores, esAnfitrion){
-    const nombreDe = id => jugadores[id] ? jugadores[id].nombre : '?';
-    const equipoA = Object.keys(equipos).filter(id=>equipos[id]===0).map(nombreDe);
-    const equipoB = Object.keys(equipos).filter(id=>equipos[id]===1).map(nombreDe);
+    const nombreDe = id => (equipos[id] && equipos[id].nombre) || (jugadores[id] && jugadores[id].nombre) || '?';
+    const equipoDeId = id => equipos[id] && typeof equipos[id]==='object' ? equipos[id].equipo : equipos[id];
+    const equipoA = Object.keys(equipos).filter(id=>equipoDeId(id)===0).map(nombreDe);
+    const equipoB = Object.keys(equipos).filter(id=>equipoDeId(id)===1).map(nombreDe);
     $('textoEquipos').innerHTML = `Equipo A: ${equipoA.map(escapeHtml).join(' y ')}<br>Equipo B: ${equipoB.map(escapeHtml).join(' y ')}`;
     $('btnIrAMesa').style.display = esAnfitrion ? 'block' : 'none';
     $('esperaAnfitrion').style.display = esAnfitrion ? 'none' : 'block';
@@ -635,7 +639,14 @@
   });
 
   $('btnConfirmarManual').addEventListener('click', async ()=>{
-    await update(ref(db,'salas/'+codigoActual), { equipos: asignacionManualActual });
+    const enriquecido = {};
+    Object.keys(asignacionManualActual).forEach(id=>{
+      enriquecido[id] = {
+        equipo: asignacionManualActual[id],
+        nombre: (jugadoresManualActual[id] && jugadoresManualActual[id].nombre) || '?'
+      };
+    });
+    await update(ref(db,'salas/'+codigoActual), { equipos: enriquecido });
   });
 
   $('btnIrAMesa').addEventListener('click', async ()=>{
