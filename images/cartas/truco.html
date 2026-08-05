@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Truco — Motor de juego</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --celeste:#74ACDF;
+    --blanco:#FBF9F4;
+    --sol:#FCBF49;
+    --sol-deep:#E09F3E;
+    --tapete:#0F3D2E;
+    --tapete-deep:#0A2B20;
+    --tinta:#132A24;
+    --rojo:#B4483A;
+    --line: rgba(251,249,244,0.18);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100vh;
+    background:linear-gradient(180deg, var(--tapete) 0%, var(--tapete-deep) 100%);
+    font-family:'Space Grotesk', sans-serif;
+    color:var(--blanco);
+  }
+  .wrap{max-width:720px; margin:0 auto; padding:36px 20px 80px;}
+  h1{
+    font-family:'Fraunces', serif; font-weight:900; text-align:center;
+    font-size:clamp(2rem,6vw,3rem); margin:0 0 6px;
+  }
+  h1 span{color:var(--sol); font-style:italic; font-weight:500;}
+  .subt{text-align:center; color:rgba(251,249,244,0.7); margin-bottom:30px;}
+
+  .panel{
+    background:rgba(19,42,36,0.55);
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:26px;
+    margin-bottom:24px;
+  }
+  .fila{display:flex; gap:14px; flex-wrap:wrap; justify-content:center; align-items:flex-end;}
+  .campo label{display:block; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.1em; color:var(--sol); margin-bottom:6px;}
+  .campo input, .campo select{
+    padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+    background:rgba(0,0,0,0.22); color:var(--blanco); font-family:inherit; font-size:0.95rem;
+  }
+  .btn{
+    font-family:inherit; font-weight:600; font-size:0.95rem;
+    padding:12px 22px; border-radius:12px; border:none; cursor:pointer;
+  }
+  .btn-sol{background:linear-gradient(180deg,#FFDD8C,var(--sol) 55%,var(--sol-deep)); color:var(--tinta);}
+  .btn-fantasma{background:transparent; color:var(--blanco); border:1px solid var(--line);}
+  .btn:disabled{opacity:.35; cursor:not-allowed;}
+
+  #configScreen, #transicionScreen, #juegoScreen, #finScreen{display:none;}
+  .activo{display:block !important;}
+
+  .transicion{
+    text-align:center; padding:80px 20px;
+  }
+  .transicion h2{font-family:'Fraunces',serif; font-size:1.8rem; margin-bottom:10px;}
+
+  .marcador{
+    display:flex; justify-content:space-between; gap:12px;
+    margin-bottom:18px;
+  }
+  .marcador .jugador{
+    flex:1; background:rgba(0,0,0,0.22); border:1px solid var(--line);
+    border-radius:14px; padding:14px; text-align:center;
+  }
+  .marcador .jugador .nom{font-size:0.85rem; opacity:.75; margin-bottom:4px;}
+  .marcador .jugador .pts{font-family:'Fraunces',serif; font-weight:700; font-size:1.8rem; color:var(--sol);}
+
+  .mesa-juego{
+    background:rgba(0,0,0,0.18); border:1px solid var(--line);
+    border-radius:16px; padding:20px; margin-bottom:18px;
+    min-height:120px; display:flex; justify-content:center; align-items:center; gap:24px;
+  }
+  .carta-mesa{width:64px; height:92px; position:relative;}
+  .carta-mesa .etiqueta{position:absolute; bottom:-20px; left:0; right:0; text-align:center; font-size:0.7rem; opacity:.7;}
+
+  .carta{
+    width:100%; height:100%; border-radius:6px; background:var(--blanco); color:var(--tinta);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    box-shadow:0 4px 10px rgba(0,0,0,0.3);
+  }
+  .carta-img{object-fit:cover;}
+  .carta .num{font-family:'Fraunces',serif; font-weight:700; font-size:1.1rem;}
+  .carta svg{width:18px; height:18px; margin-top:2px;}
+  .carta.oro .num,.carta.oro svg{color:#B8860B;}
+  .carta.copa .num,.carta.copa svg{color:#B4483A;}
+  .carta.espada .num,.carta.espada svg{color:#2E4B6B;}
+  .carta.basto .num,.carta.basto svg{color:#3E6B3E;}
+
+  .mano-jugador{
+    display:flex; gap:14px; justify-content:center; margin-bottom:20px;
+  }
+  .carta-jugable{
+    width:72px; height:104px; cursor:pointer;
+    transition:transform .15s;
+  }
+  .carta-jugable:hover{transform:translateY(-8px);}
+  .carta-jugable.usada{opacity:0.25; cursor:not-allowed; pointer-events:none;}
+
+  .turno-info{
+    text-align:center; font-size:0.85rem; color:var(--sol);
+    text-transform:uppercase; letter-spacing:0.1em; margin-bottom:14px;
+  }
+
+  .cantos{
+    display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-bottom:22px;
+  }
+
+  .log-cont{max-width:520px; margin:0 auto;}
+  .log-titulo{font-size:0.72rem; text-transform:uppercase; letter-spacing:0.12em; color:rgba(251,249,244,0.5); margin-bottom:8px; text-align:center;}
+  .log{display:flex; flex-direction:column; gap:6px; max-height:180px; overflow-y:auto; padding:4px;}
+  .log-item{font-size:0.82rem; padding:6px 12px; border-radius:8px; background:rgba(0,0,0,0.22); border:1px solid var(--line);}
+  .log-item.destacado{background:rgba(252,191,73,0.15); border-color:rgba(252,191,73,0.45); color:var(--sol);}
+
+  .finScreen{text-align:center;}
+  .finScreen h2{font-family:'Fraunces',serif; font-style:italic; font-size:2.2rem; color:var(--sol);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Truco<span> argentino</span></h1>
+  <p class="subt">Motor de juego 1 vs 1 — pasá el dispositivo entre mano y mano.</p>
+
+  <div id="configScreen" class="panel activo">
+    <div class="fila">
+      <div class="campo">
+        <label>Jugador 1</label>
+        <input type="text" id="nombreJ1" placeholder="Jugador 1">
+      </div>
+      <div class="campo">
+        <label>Jugador 2</label>
+        <input type="text" id="nombreJ2" placeholder="Jugador 2">
+      </div>
+      <div class="campo">
+        <label>Puntos para ganar</label>
+        <select id="puntosObjetivo">
+          <option value="15">15</option>
+          <option value="30" selected>30</option>
+        </select>
+      </div>
+      <button class="btn btn-sol" id="btnEmpezar">Empezar partida</button>
+    </div>
+  </div>
+
+  <div id="transicionScreen" class="transicion">
+    <h2 id="transicionTexto">Pasale el dispositivo a...</h2>
+    <button class="btn btn-sol" id="btnVerMano">Ver mis cartas</button>
+  </div>
+
+  <div id="juegoScreen">
+    <div class="marcador">
+      <div class="jugador"><div class="nom" id="nomJ1">Jugador 1</div><div class="pts" id="ptsJ1">0</div></div>
+      <div class="jugador"><div class="nom" id="nomJ2">Jugador 2</div><div class="pts" id="ptsJ2">0</div></div>
+    </div>
+
+    <div class="turno-info" id="turnoInfo">Turno de...</div>
+
+    <div class="mesa-juego" id="mesaJuego"></div>
+
+    <div class="mano-jugador" id="manoJugador"></div>
+
+    <div class="cantos" id="cantosDisponibles"></div>
+
+    <div class="log-cont">
+      <div class="log-titulo">Qué pasó en la mesa</div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <div id="finScreen" class="panel finScreen">
+    <h2 id="finTexto">¡Ganó!</h2>
+    <button class="btn btn-fantasma" id="btnNuevaPartida">Jugar de nuevo</button>
+  </div>
+</div>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="s-oro" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.4" fill="currentColor"/></symbol>
+  <symbol id="s-copa" viewBox="0 0 24 24"><path d="M5 3h14l-1.4 8.2A5.6 5.6 0 0 1 12 16a5.6 5.6 0 0 1-5.6-4.8L5 3z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 16v4M8.5 21h7" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="s-espada" viewBox="0 0 24 24"><path d="M12 2l1.6 12.5L12 22l-1.6-7.5L12 2z" fill="currentColor"/><path d="M7 8h10" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="s-basto" viewBox="0 0 24 24"><path d="M6 20L17 4" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/><path d="M15.5 3.5c1.6-1 3.4.4 2.9 2.2-.4 1.5-2.5 2-3.6.9-1-1-.9-2.7.7-3.1z" fill="currentColor"/></symbol>
+</svg>
+
+<script>
+(function(){
+  const PALOS = [{id:'oro',s:'s-oro'},{id:'copa',s:'s-copa'},{id:'espada',s:'s-espada'},{id:'basto',s:'s-basto'}];
+  const VALORES = [1,2,3,4,5,6,7,10,11,12];
+
+  // ---------- Jerarquía de bazas (mayor número = mejor carta) ----------
+  function jerarquia(c){
+    if(c.palo==='espada' && c.valor===1) return 14;
+    if(c.palo==='basto' && c.valor===1) return 13;
+    if(c.palo==='espada' && c.valor===7) return 12;
+    if(c.palo==='oro' && c.valor===7) return 11;
+    if(c.valor===3) return 10;
+    if(c.valor===2) return 9;
+    if(c.valor===1) return 8; // anchos falsos: oro, copa
+    if(c.valor===12) return 7;
+    if(c.valor===11) return 6;
+    if(c.valor===10) return 5;
+    if(c.valor===7) return 4; // 7 falsos: basto, copa
+    if(c.valor===6) return 3;
+    if(c.valor===5) return 2;
+    if(c.valor===4) return 1;
+    return 0;
+  }
+  function valorEnvido(c){ return c.valor>=10 ? 0 : c.valor; }
+  function calcularEnvido(mano){
+    const porPalo = {};
+    mano.forEach(c=>{ (porPalo[c.palo] = porPalo[c.palo]||[]).push(c); });
+    let mejorPar = null;
+    Object.values(porPalo).forEach(grupo=>{
+      if(grupo.length>=2){
+        const vals = grupo.map(valorEnvido).sort((a,b)=>b-a);
+        const suma = vals[0]+vals[1]+20;
+        if(mejorPar===null || suma>mejorPar) mejorPar = suma;
+      }
+    });
+    if(mejorPar!==null) return mejorPar;
+    return Math.max(...mano.map(valorEnvido));
+  }
+
+  function crearMazoMezclado(){
+    const cartas = [];
+    PALOS.forEach(p=>VALORES.forEach(v=>cartas.push({palo:p.id, s:p.s, valor:v})));
+    for(let i=cartas.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [cartas[i],cartas[j]]=[cartas[j],cartas[i]];
+    }
+    return cartas;
+  }
+
+  window.cartaFallback = function(img, valor, palo, simbolo){
+    img.outerHTML = '<div class="carta '+palo+'"><div class="num">'+valor+'</div><svg><use href="#'+simbolo+'"/></svg></div>';
+  };
+  function cartaHTML(c){
+    return '<img src="images/cartas/'+c.valor+'-'+c.palo+'.png" class="carta carta-img" alt="'+c.valor+' de '+c.palo+'" onerror="cartaFallback(this,'+c.valor+",'"+c.palo+"','"+c.s+"')\">";
+  }
+
+  // ---------- Estado del juego ----------
+  let jugadores, puntosObjetivo, dealerIndex;
+  let mazo, manoActual, pieIndex, turnoIndex;
+  let bazas, indiceBaza, cartasJugadasEnBaza;
+  let trucoState, envidoState;
+  let esperandoTransicionPara = null;
+  let callbackTrasVerMano = null;
+
+  const $ = id => document.getElementById(id);
+
+  $('btnEmpezar').addEventListener('click', ()=>{
+    const n1 = $('nombreJ1').value.trim() || 'Jugador 1';
+    const n2 = $('nombreJ2').value.trim() || 'Jugador 2';
+    puntosObjetivo = parseInt($('puntosObjetivo').value,10);
+    jugadores = [
+      {nombre:n1, puntos:0, mano:[], usadas:[]},
+      {nombre:n2, puntos:0, mano:[], usadas:[]}
+    ];
+    dealerIndex = 0;
+    $('nomJ1').textContent = n1;
+    $('nomJ2').textContent = n2;
+    $('configScreen').classList.remove('activo');
+    $('juegoScreen').style.display = 'block';
+    logReset();
+    iniciarNuevaMano();
+  });
+
+  function iniciarNuevaMano(){
+    mazo = crearMazoMezclado();
+    pieIndex = (dealerIndex+1)%2; // el "mano" (primero en jugar) es el que sigue al dealer
+    jugadores[0].mano = []; jugadores[1].mano = [];
+    jugadores[0].usadas = []; jugadores[1].usadas = [];
+    for(let i=0;i<3;i++){
+      jugadores[0].mano.push(mazo.pop());
+      jugadores[1].mano.push(mazo.pop());
+    }
+    bazas = []; indiceBaza = 0; cartasJugadasEnBaza = [];
+    turnoIndex = pieIndex;
+    trucoState = { nivel:0, valor:1, cantadoPor:null, pendienteRespuesta:false };
+    envidoState = { ventanaAbierta:true, acumulado:0, chain:[], pendienteRespuesta:false, cantadoPor:null, tipoPendiente:null, resuelto:false };
+    logMensaje('Nueva mano. Reparte ' + jugadores[dealerIndex].nombre + '.');
+    actualizarMarcador();
+    irATransicion(pieIndex, renderTurno);
+  }
+
+  function actualizarMarcador(){
+    $('ptsJ1').textContent = jugadores[0].puntos;
+    $('ptsJ2').textContent = jugadores[1].puntos;
+  }
+
+  function logMensaje(txt, destacado){
+    const it = document.createElement('div');
+    it.className = 'log-item' + (destacado?' destacado':'');
+    it.textContent = txt;
+    $('log').appendChild(it);
+    $('log').scrollTop = $('log').scrollHeight;
+  }
+  function logReset(){ $('log').innerHTML=''; }
+
+  // ---------- Transición pasa-y-juega ----------
+  function irATransicion(jugadorIdx, callback){
+    esperandoTransicionPara = jugadorIdx;
+    callbackTrasVerMano = callback;
+    $('juegoScreen').style.display = 'none';
+    $('transicionScreen').classList.add('activo');
+    $('transicionTexto').textContent = 'Pasale el dispositivo a ' + jugadores[jugadorIdx].nombre;
+  }
+  $('btnVerMano').addEventListener('click', ()=>{
+    $('transicionScreen').classList.remove('activo');
+    $('juegoScreen').style.display = 'block';
+    if(callbackTrasVerMano) callbackTrasVerMano();
+  });
+
+  // ---------- Render ----------
+  function renderTurno(){
+    $('turnoInfo').textContent = 'Turno de ' + jugadores[turnoIndex].nombre;
+    renderMesa();
+    renderManoJugador();
+    renderCantos();
+  }
+
+  function renderMesa(){
+    const mesa = $('mesaJuego');
+    mesa.innerHTML = '';
+    if(cartasJugadasEnBaza.length===0){
+      mesa.innerHTML = '<span style="opacity:.5;font-size:.85rem;">Esperando la primera carta...</span>';
+      return;
+    }
+    cartasJugadasEnBaza.forEach(j=>{
+      const div = document.createElement('div');
+      div.className = 'carta-mesa';
+      div.innerHTML = cartaHTML(j.carta) + `<div class="etiqueta">${jugadores[j.jugador].nombre}</div>`;
+      mesa.appendChild(div);
+    });
+  }
+
+  function renderManoJugador(){
+    const cont = $('manoJugador');
+    cont.innerHTML = '';
+    const activo = jugadores[turnoIndex];
+    const yaJugoEsta = cartasJugadasEnBaza.some(j=>j.jugador===turnoIndex);
+    activo.mano.forEach((c,idx)=>{
+      const usada = activo.usadas.includes(idx);
+      const div = document.createElement('div');
+      div.className = 'carta-jugable' + (usada || yaJugoEsta || trucoState.pendienteRespuesta || envidoState.pendienteRespuesta ? ' usada' : '');
+      div.innerHTML = cartaHTML(c);
+      if(!usada && !yaJugoEsta && !trucoState.pendienteRespuesta && !envidoState.pendienteRespuesta){
+        div.addEventListener('click', ()=>jugarCarta(turnoIndex, idx));
+      }
+      cont.appendChild(div);
+    });
+  }
+
+  // ---------- Cantos disponibles ----------
+  function renderCantos(){
+    const cont = $('cantosDisponibles');
+    cont.innerHTML = '';
+
+    if(trucoState.pendienteRespuesta && trucoState.cantadoPor !== turnoIndex){
+      agregarBoton(cont,'Quiero', ()=>responderTruco(true));
+      agregarBoton(cont,'No quiero', ()=>responderTruco(false));
+      if(trucoState.nivel===1) agregarBoton(cont,'Retruco', ()=>cantarTruco(2));
+      if(trucoState.nivel===2) agregarBoton(cont,'Vale cuatro', ()=>cantarTruco(3));
+      return;
+    }
+    if(envidoState.pendienteRespuesta && envidoState.cantadoPor !== turnoIndex){
+      agregarBoton(cont,'Quiero', ()=>responderEnvido(true));
+      agregarBoton(cont,'No quiero', ()=>responderEnvido(false));
+      const ultimo = envidoState.chain[envidoState.chain.length-1];
+      if(ultimo==='envido') agregarBoton(cont,'Envido', ()=>cantarEnvido('envido'));
+      if(ultimo==='envido' || ultimo==='envido2') agregarBoton(cont,'Real envido', ()=>cantarEnvido('real'));
+      agregarBoton(cont,'Falta envido', ()=>cantarEnvido('falta'));
+      return;
+    }
+
+    // truco: se puede cantar si no hay canto pendiente y no está resuelto en su tope
+    if(trucoState.nivel<3){
+      const etiquetas = ['Truco','Retruco','Vale cuatro'];
+      agregarBoton(cont, etiquetas[trucoState.nivel], ()=>cantarTruco(trucoState.nivel+1));
+    }
+    // envido: solo en la primera baza, antes de que termine, y si no fue cantado/resuelto ya
+    if(envidoState.ventanaAbierta && !envidoState.resuelto && indiceBaza===0 && envidoState.chain.length===0){
+      agregarBoton(cont,'Envido', ()=>cantarEnvido('envido'));
+      agregarBoton(cont,'Real envido', ()=>cantarEnvido('real'));
+      agregarBoton(cont,'Falta envido', ()=>cantarEnvido('falta'));
+    }
+  }
+  function agregarBoton(cont, texto, fn){
+    const b = document.createElement('button');
+    b.className = 'btn btn-fantasma';
+    b.textContent = texto;
+    b.addEventListener('click', fn);
+    cont.appendChild(b);
+  }
+
+  // ---------- Truco ----------
+  function cantarTruco(nivel){
+    trucoState.nivel = nivel;
+    trucoState.cantadoPor = turnoIndex;
+    trucoState.pendienteRespuesta = true;
+    const nombres = ['Truco','Retruco','Vale cuatro'];
+    logMensaje(jugadores[turnoIndex].nombre + ' canta ' + nombres[nivel-1] + '!', true);
+    const otro = (turnoIndex+1)%2;
+    turnoIndex = otro;
+    irATransicion(otro, ()=>{
+      renderMesa(); renderManoJugador(); renderCantos();
+      $('turnoInfo').textContent = 'Responden a ' + (['Truco','Retruco','Vale cuatro'][trucoState.nivel-1]);
+    });
+  }
+
+  function responderTruco(quiere){
+    const nombres = ['Truco','Retruco','Vale cuatro'];
+    trucoState.pendienteRespuesta = false;
+    if(quiere){
+      trucoState.valor = trucoState.nivel+1;
+      logMensaje((jugadores[(trucoState.cantadoPor+1)%2].nombre) + ' quiere. La mano vale ' + trucoState.valor + '.', true);
+      // vuelve el turno a quien tenía que jugar
+      volverAJugar();
+    } else {
+      trucoState.valor = trucoState.nivel; // valor del nivel anterior
+      const rival = (trucoState.cantadoPor+1)%2;
+      logMensaje(jugadores[rival].nombre + ' no quiere. ' + jugadores[trucoState.cantadoPor].nombre + ' suma ' + trucoState.valor + ' punto(s).', true);
+      jugadores[trucoState.cantadoPor].puntos += trucoState.valor;
+      actualizarMarcador();
+      finDeManoPorNoQuiero();
+    }
+  }
+
+  function volverAJugar(){
+    // decide a quién le tocaba jugar antes del canto
+    let quienJuega = turnoIndex;
+    // si nadie jugó carta en esta baza, le toca al que iba a jugar (pieIndex de la baza)
+    if(cartasJugadasEnBaza.length===1){
+      quienJuega = (cartasJugadasEnBaza[0].jugador+1)%2;
+    } else if(cartasJugadasEnBaza.length===0){
+      quienJuega = indiceBaza===0 ? pieIndex : ultimoGanadorBaza();
+    }
+    turnoIndex = quienJuega;
+    irATransicion(turnoIndex, renderTurno);
+  }
+
+  function ultimoGanadorBaza(){
+    for(let i=bazas.length-1;i>=0;i--){
+      if(bazas[i].ganador!==null) return bazas[i].ganador;
+    }
+    return pieIndex;
+  }
+
+  // ---------- Envido ----------
+  function cantarEnvido(tipo){
+    envidoState.chain.push(tipo==='envido' ? (envidoState.chain.includes('envido')?'envido2':'envido') : tipo);
+    envidoState.cantadoPor = turnoIndex;
+    envidoState.pendienteRespuesta = true;
+    const nombres = {envido:'Envido', envido2:'Envido', real:'Real envido', falta:'Falta envido'};
+    logMensaje(jugadores[turnoIndex].nombre + ' canta ' + nombres[envidoState.chain[envidoState.chain.length-1]] + '!', true);
+    const otro = (turnoIndex+1)%2;
+    turnoIndex = otro;
+    irATransicion(otro, ()=>{ renderMesa(); renderManoJugador(); renderCantos(); $('turnoInfo').textContent='Responden al envido'; });
+  }
+
+  function valorDelCanto(tipo){
+    if(tipo==='envido' || tipo==='envido2') return 2;
+    if(tipo==='real') return 3;
+    return 0; // falta se calcula aparte
+  }
+
+  function responderEnvido(quiere){
+    envidoState.pendienteRespuesta = false;
+    const cantador = envidoState.cantadoPor;
+    const rival = (cantador+1)%2;
+    const ultimoTipo = envidoState.chain[envidoState.chain.length-1];
+
+    if(!quiere){
+      const puntos = envidoState.acumulado>0 ? envidoState.acumulado : 1;
+      jugadores[cantador].puntos += puntos;
+      logMensaje(jugadores[rival].nombre + ' no quiere el envido. ' + jugadores[cantador].nombre + ' suma ' + puntos + ' punto(s).', true);
+      envidoState.resuelto = true;
+      actualizarMarcador();
+      chequearFinPartida();
+      volverAJugarTrasEnvido();
+      return;
+    }
+
+    // querido: suma el valor de este paso al acumulado
+    if(ultimoTipo==='falta'){
+      const lider = Math.max(jugadores[0].puntos, jugadores[1].puntos);
+      envidoState.acumulado = puntosObjetivo - lider;
+    } else {
+      envidoState.acumulado += valorDelCanto(ultimoTipo);
+    }
+
+    // si el que respondió puede escalar en vez de solo "quiero" ya lo maneja renderCantos (botones extra),
+    // pero si llegó acá es porque tocó "Quiero": se calcula el ganador del envido.
+    const e1 = calcularEnvido(jugadores[0].mano);
+    const e2 = calcularEnvido(jugadores[1].mano);
+    let ganador;
+    if(e1===e2) ganador = pieIndex; // en empate gana el "mano" de la partida
+    else ganador = e1>e2 ? 0 : 1;
+
+    jugadores[ganador].puntos += envidoState.acumulado;
+    logMensaje(jugadores[rival].nombre + ' quiere. ' + jugadores[0].nombre + ' tenía ' + e1 + ', ' + jugadores[1].nombre + ' tenía ' + e2 + '. Gana ' + jugadores[ganador].nombre + ' y suma ' + envidoState.acumulado + ' punto(s).', true);
+    envidoState.resuelto = true;
+    actualizarMarcador();
+    chequearFinPartida();
+    volverAJugarTrasEnvido();
+  }
+
+  function volverAJugarTrasEnvido(){
+    if(partidaTerminada) return;
+    let quienJuega = cartasJugadasEnBaza.length===1 ? (cartasJugadasEnBaza[0].jugador+1)%2 : (indiceBaza===0?pieIndex:ultimoGanadorBaza());
+    turnoIndex = quienJuega;
+    irATransicion(turnoIndex, renderTurno);
+  }
+
+  // ---------- Jugar carta ----------
+  function jugarCarta(jugadorIdx, cartaIdx){
+    const jugador = jugadores[jugadorIdx];
+    jugador.usadas.push(cartaIdx);
+    const carta = jugador.mano[cartaIdx];
+    cartasJugadasEnBaza.push({jugador:jugadorIdx, carta});
+    logMensaje(jugador.nombre + ' juega ' + carta.valor + ' de ' + carta.palo + '.');
+
+    if(cartasJugadasEnBaza.length<2){
+      turnoIndex = (jugadorIdx+1)%2;
+      irATransicion(turnoIndex, renderTurno);
+      return;
+    }
+
+    // se completó la baza
+    const [a,b] = cartasJugadasEnBaza;
+    const ja = jerarquia(a.carta), jb = jerarquia(b.carta);
+    let ganadorBaza = null;
+    if(ja>jb) ganadorBaza = a.jugador;
+    else if(jb>ja) ganadorBaza = b.jugador;
+    else ganadorBaza = null; // parda
+
+    bazas.push({ganador:ganadorBaza});
+    if(ganadorBaza===null) logMensaje('Parda en esta baza.', true);
+    else logMensaje('Se lleva la baza ' + jugadores[ganadorBaza].nombre + '.', true);
+
+    const ganadorMano = evaluarGanadorMano();
+    cartasJugadasEnBaza = [];
+    indiceBaza++;
+
+    if(ganadorMano!==null){
+      cerrarMano(ganadorMano);
+      return;
+    }
+    if(indiceBaza>=3){
+      // no debería pasar sin ganador, pero por seguridad cerramos con el que ganó la primera
+      cerrarMano(bazas[0].ganador!==null?bazas[0].ganador:pieIndex);
+      return;
+    }
+
+    const siguienteJuega = ganadorBaza!==null ? ganadorBaza : pieIndex;
+    turnoIndex = siguienteJuega;
+    irATransicion(turnoIndex, renderTurno);
+  }
+
+  function evaluarGanadorMano(){
+    const [b1,b2,b3] = bazas;
+    if(!b1) return null;
+    if(b2===undefined){
+      return null; // falta la segunda
+    }
+    if(b1.ganador!==null && b1.ganador===b2.ganador) return b1.ganador;
+    if(b1.ganador===null){
+      if(b2.ganador!==null) return b2.ganador;
+      return null; // ambas pardas, decide la tercera (o gana mano si también parda)
+    }
+    if(b2.ganador===null) return b1.ganador; // 1ra ganada, 2da parda -> gana 1ra
+    // b1 y b2 con ganadores distintos -> decide la 3ra
+    if(!b3) return null;
+    if(b3.ganador!==null) return b3.ganador;
+    return b1.ganador; // 3ra parda -> gana quien ganó la primera
+  }
+
+  function finDeManoPorNoQuiero(){
+    chequearFinPartida();
+    if(partidaTerminada) return;
+    setTimeout(()=>{ dealerIndex = (dealerIndex+1)%2; iniciarNuevaMano(); }, 300);
+  }
+
+  function cerrarMano(ganadorIdx){
+    const puntos = trucoState.valor;
+    jugadores[ganadorIdx].puntos += puntos;
+    logMensaje(jugadores[ganadorIdx].nombre + ' se lleva la mano y suma ' + puntos + ' punto(s).', true);
+    actualizarMarcador();
+    chequearFinPartida();
+    if(partidaTerminada) return;
+    setTimeout(()=>{ dealerIndex = (dealerIndex+1)%2; iniciarNuevaMano(); }, 300);
+  }
+
+  let partidaTerminada = false;
+  function chequearFinPartida(){
+    jugadores.forEach((j, idx)=>{
+      if(j.puntos>=puntosObjetivo && !partidaTerminada){
+        partidaTerminada = true;
+        $('juegoScreen').style.display = 'none';
+        $('transicionScreen').classList.remove('activo');
+        $('finScreen').classList.add('activo');
+        $('finTexto').textContent = '¡Ganó ' + j.nombre + '!';
+      }
+    });
+  }
+
+  $('btnNuevaPartida').addEventListener('click', ()=>{
+    partidaTerminada = false;
+    $('finScreen').classList.remove('activo');
+    $('configScreen').classList.add('activo');
+  });
+
+})();
+</script>
+</body>
+</html>

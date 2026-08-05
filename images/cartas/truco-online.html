@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Truco online — 2 vs 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --celeste:#74ACDF; --blanco:#FBF9F4; --sol:#FCBF49; --sol-deep:#E09F3E;
+    --tapete:#0F3D2E; --tapete-deep:#0A2B20; --tinta:#132A24; --line: rgba(251,249,244,0.18);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; min-height:100vh; background:linear-gradient(180deg,var(--tapete),var(--tapete-deep)); font-family:'Space Grotesk',sans-serif; color:var(--blanco);}
+  .wrap{max-width:760px; margin:0 auto; padding:28px 16px 90px;}
+  h1{font-family:'Fraunces',serif; font-weight:900; text-align:center; font-size:clamp(1.7rem,5vw,2.4rem); margin:0 0 18px;}
+  h1 span{color:var(--sol); font-style:italic; font-weight:500;}
+
+  .marcador{display:flex; gap:12px; margin-bottom:16px;}
+  .marcador .equipo{flex:1; background:rgba(0,0,0,.22); border:1px solid var(--line); border-radius:14px; padding:12px; text-align:center; position:relative; overflow:visible;}
+  .marcador .equipo .nom{font-size:.78rem; opacity:.75;}
+  .marcador .equipo .pts{font-family:'Fraunces',serif; font-weight:700; font-size:1.7rem; color:var(--sol);}
+  .marcador .equipo.mio{border-color:var(--celeste);}
+  .puntos-flotantes{
+    position:absolute; top:-4px; right:10px;
+    color:var(--sol); font-weight:700; font-family:'Fraunces',serif;
+    font-size:1.15rem; pointer-events:none;
+    animation:flotar 1.4s ease forwards;
+  }
+  @keyframes flotar{ 0%{opacity:0; transform:translateY(4px);} 15%{opacity:1;} 100%{opacity:0; transform:translateY(-24px);} }
+
+  .mazo-central{position:relative; width:60px; height:86px; margin:0 auto 10px;}
+  .mazo-central .capa{
+    position:absolute; inset:0; border-radius:8px;
+    background:url('images/cartas/dorso.png') center/cover no-repeat, linear-gradient(145deg,#B4483A,#7C2E24);
+    border:2px solid var(--blanco);
+    box-shadow:0 6px 14px rgba(0,0,0,.4);
+  }
+  .mazo-central .capa::after{ content:''; position:absolute; inset:6px; border:1px solid rgba(251,249,244,.5); border-radius:4px; }
+  .mazo-central .capa:nth-child(1){transform:rotate(-6deg) translate(-3px,2px);}
+  .mazo-central .capa:nth-child(2){transform:rotate(4deg) translate(3px,-1px);}
+  .mazo-central .capa:nth-child(3){transform:rotate(0);}
+
+  .mesa-wrap{position:relative; margin:10px auto 18px;}
+  .mesa-redonda{
+    position:relative;
+    width:min(460px, 94vw); height:min(460px, 94vw);
+    margin:0 auto;
+    border-radius:50%;
+    background:
+      radial-gradient(circle at 50% 42%, rgba(252,191,73,0.10), transparent 60%),
+      radial-gradient(circle, #145C41 0%, var(--tapete) 62%, var(--tapete-deep) 100%);
+    border:8px solid #0A2B20;
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.45), 0 16px 40px -16px rgba(0,0,0,0.6);
+  }
+  .mesa-redonda::before{
+    content:''; position:absolute; inset:20px;
+    border:1px dashed rgba(251,249,244,0.15); border-radius:50%;
+  }
+  .overlay-reparto{
+    position:absolute; inset:8px; border-radius:50%;
+    background:rgba(10,43,32,.92);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+    z-index:30; text-align:center; padding:20px;
+  }
+  .overlay-texto{font-family:'Fraunces',serif; font-weight:700; font-size:1.15rem;}
+
+  .centro-mesa{
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    display:flex; gap:8px; flex-wrap:wrap; justify-content:center; align-items:center;
+    max-width:75%;
+  }
+  .centro-mesa .sin-cartas{opacity:.45; font-size:.75rem; text-align:center;}
+
+  .pila-jugador{position:absolute; width:0; height:0;}
+  .carta-en-pila{position:absolute; top:0; left:0; width:52px; height:76px; transition:transform .35s ease;}
+  .carta-en-pila.ganadora .carta{ box-shadow:0 0 0 3px var(--sol), 0 6px 16px rgba(252,191,73,.55); }
+  .carta-en-pila.ganadora::after{
+    content:'★'; position:absolute; top:-9px; right:-7px;
+    width:20px; height:20px; border-radius:50%;
+    background:var(--sol); color:var(--tinta);
+    font-size:.7rem; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,.4);
+  }
+
+  .asiento-redondo{
+    position:absolute; transform:translate(-50%,-50%);
+    text-align:center; width:100px; z-index:5;
+  }
+  .asiento-redondo .nom{
+    font-size:.72rem; font-weight:600; padding:3px 9px; border-radius:999px;
+    display:inline-block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    background:rgba(0,0,0,.4);
+  }
+  .asiento-redondo.equipo-a .nom{border:1px solid var(--celeste);}
+  .asiento-redondo.equipo-b .nom{border:1px solid var(--sol);}
+  .asiento-redondo.turno .nom{
+    background:var(--sol); color:var(--tinta);
+    animation:latido 1s ease-in-out infinite;
+  }
+  .asiento-redondo.vos .nom{outline:2px solid var(--blanco); outline-offset:1px;}
+  @keyframes latido{ 0%,100%{opacity:1;} 50%{opacity:.6;} }
+
+  .tantos-declarados{
+    position:absolute; transform:translate(-50%,-50%); z-index:15;
+    background:var(--sol); color:var(--tinta); font-weight:700; font-family:'Fraunces',serif;
+    font-size:.85rem; padding:2px 11px; border-radius:999px;
+    box-shadow:0 3px 8px rgba(0,0,0,.35);
+  }
+
+  .cartas-restantes{display:flex; gap:2px; justify-content:center; margin-top:4px;}
+  .cartas-restantes .mini-dorso{width:12px; height:17px; border-radius:2px; background:linear-gradient(145deg,#B4483A,#7C2E24); border:1px solid var(--blanco);}
+  .sena-badge-mini{
+    position:absolute; top:-16px; left:50%; transform:translateX(-50%);
+    width:24px; height:24px; border-radius:50%;
+    background:var(--sol); border:2px solid var(--tapete-deep);
+    display:flex; align-items:center; justify-content:center;
+    font-size:.85rem; cursor:help; box-shadow:0 3px 8px rgba(0,0,0,.35);
+  }
+
+  .carta{width:52px; height:76px; border-radius:6px; background:var(--blanco); color:var(--tinta); display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 4px 10px rgba(0,0,0,.3);}
+  .carta-img{object-fit:cover;}
+  .carta.dorso{background:url('images/cartas/dorso.png') center/cover no-repeat, linear-gradient(145deg,#B4483A,#7C2E24); border:2px solid var(--blanco);}
+  .carta .num{font-family:'Fraunces',serif; font-weight:700; font-size:.95rem;}
+  .carta svg{width:15px; height:15px; margin-top:2px;}
+  .carta.oro .num,.carta.oro svg{color:#B8860B;}
+  .carta.copa .num,.carta.copa svg{color:#B4483A;}
+  .carta.espada .num,.carta.espada svg{color:#2E4B6B;}
+  .carta.basto .num,.carta.basto svg{color:#3E6B3E;}
+
+  .mano-en-mesa{position:absolute; width:0; height:0; z-index:10;}
+  .carta-jugable{width:64px; height:92px; cursor:pointer; transition:transform .15s; position:absolute; top:0; left:0; margin:-46px 0 0 -32px; transform:var(--tf, none); z-index:var(--z, 1);}
+  .carta-jugable:hover{transform:var(--tf, none) translateY(-14px); z-index:40;}
+  .carta-jugable.usada{opacity:.2; pointer-events:none;}
+  .carta-jugable.bloqueada{opacity:.55; cursor:not-allowed; pointer-events:none;}
+  .carta-jugable.bloqueada .sena-badge{pointer-events:auto; cursor:pointer;}
+  .carta-jugable .carta{width:100%; height:100%;}
+  .sena-badge{
+    position:absolute; top:-16px; left:50%; transform:translateX(-50%);
+    width:28px; height:28px; border-radius:50%;
+    background:var(--sol); border:2px solid var(--tapete-deep);
+    display:flex; align-items:center; justify-content:center;
+    font-size:.95rem; cursor:pointer; z-index:5;
+    box-shadow:0 3px 8px rgba(0,0,0,.35);
+  }
+  .sena-badge:hover{transform:translateX(-50%) scale(1.12);}
+  .sena-badge:active{transform:translateX(-50%) scale(0.95);}
+
+  .mano-companero-en-mesa{position:absolute; width:0; height:0; z-index:8;}
+  .carta-companero{
+    width:48px; height:70px; position:absolute; top:0; left:0; margin:-35px 0 0 -24px;
+    transition:transform .3s ease;
+  }
+  .carta-companero .carta{width:100%; height:100%;}
+
+  .turno-info{text-align:center; font-size:.85rem; color:var(--sol); text-transform:uppercase; letter-spacing:.1em; margin-bottom:12px;}
+
+  .btn{font-family:inherit; font-weight:600; font-size:.92rem; padding:11px 18px; border-radius:12px; border:none; cursor:pointer;}
+  .btn-sol{background:linear-gradient(180deg,#FFDD8C,var(--sol) 55%,var(--sol-deep)); color:var(--tinta);}
+  .btn-fantasma{background:transparent; color:var(--blanco); border:1px solid var(--line);}
+
+  .cantos{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:14px;}
+
+  .toggle-mostrar-cont{text-align:center; margin-bottom:80px;}
+  .toggle-mostrar{display:inline-flex; align-items:center; gap:8px; font-size:.8rem; opacity:.8; cursor:pointer;}
+  .toggle-mostrar input{width:16px; height:16px;}
+
+  .toast-sena{
+    position:fixed; top:16px; left:50%; transform:translateX(-50%);
+    background:var(--sol); color:var(--tinta); padding:12px 22px; border-radius:999px;
+    font-weight:600; font-size:.9rem; box-shadow:0 8px 20px rgba(0,0,0,.3);
+    z-index:60; display:none;
+  }
+
+  #chatBtn{
+    position:fixed; bottom:20px; right:20px; z-index:55;
+    width:52px; height:52px; border-radius:50%; border:none;
+    background:var(--sol); font-size:1.4rem; cursor:pointer;
+    box-shadow:0 8px 20px rgba(0,0,0,.4);
+  }
+  #chatPanel{
+    display:none;
+    position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+    width:min(420px,94vw); max-height:52vh;
+    background:var(--tapete-deep); border:1px solid var(--line); border-top:1px solid var(--line);
+    border-radius:16px 16px 0 0; z-index:56;
+    padding:14px; box-shadow:0 -8px 30px rgba(0,0,0,.5);
+    flex-direction:column;
+  }
+  #chatPanel.abierto{display:flex;}
+  .chat-header{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:.85rem; text-transform:uppercase; letter-spacing:.1em; color:rgba(251,249,244,.6);}
+  .chat-header button{background:transparent; border:none; color:var(--blanco); font-size:1rem; cursor:pointer;}
+  .log{display:flex; flex-direction:column; gap:6px; overflow-y:auto; padding:2px;}
+  .log-item{font-size:.8rem; padding:6px 12px; border-radius:8px; background:rgba(0,0,0,.22); border:1px solid var(--line);}
+  .log-item.destacado{background:rgba(252,191,73,.15); border-color:rgba(252,191,73,.45); color:var(--sol);}
+
+  .pantalla-centro{text-align:center; padding:60px 20px;}
+  .pantalla-centro h2{font-family:'Fraunces',serif; font-size:1.7rem; margin-bottom:10px;}
+  #finScreen{display:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Truco<span> 2 vs 2</span></h1>
+
+  <div id="cargando" class="pantalla-centro">
+    <h2>Conectando a la mesa...</h2>
+  </div>
+
+  <div id="esperandoReparto" class="pantalla-centro" style="display:none;">
+    <h2>Esperando que se repartan las cartas...</h2>
+    <p style="opacity:.7; font-size:.9rem;">Esto debería pasar solo apenas entran los 4 jugadores. Si no pasa, tocá el botón.</p>
+    <button class="btn btn-sol" id="btnRepartirManual">Repartir cartas</button>
+  </div>
+
+  <div id="juego" style="display:none;">
+    <div class="marcador" id="marcador"></div>
+
+    <div class="mesa-wrap" id="mesaWrap">
+      <div class="mesa-redonda" id="mesaRedonda"></div>
+      <div class="overlay-reparto" id="overlayReparto" style="display:none;">
+        <div class="mazo-central">
+          <div class="capa"></div>
+          <div class="capa"></div>
+          <div class="capa"></div>
+        </div>
+        <div id="textoReparto" class="overlay-texto">Reparte...</div>
+        <button class="btn btn-sol" id="btnRepartirYo" style="display:none;">Repartir cartas</button>
+      </div>
+    </div>
+
+    <div class="turno-info" id="turnoInfo"></div>
+
+    <div class="cantos" id="cantosDisponibles"></div>
+
+    <div style="text-align:center; margin-bottom:14px;">
+      <button class="btn btn-fantasma" id="btnMazo" style="border-color:#B4483A; color:#F2A29A;">Irse al mazo</button>
+    </div>
+
+    <div class="toggle-mostrar-cont">
+      <label class="toggle-mostrar">
+        <input type="checkbox" id="chkMostrar"> Mostrarle mis cartas a mi compañero
+      </label>
+    </div>
+
+    <button id="chatBtn" aria-label="Ver jugadas">💬</button>
+    <div id="chatPanel">
+      <div class="chat-header">
+        <span>Jugadas</span>
+        <button id="chatClose" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <div id="finScreen" class="pantalla-centro">
+    <h2 id="finTexto"></h2>
+    <a href="sala.html" class="btn btn-fantasma">Volver a la sala</a>
+  </div>
+</div>
+
+<div class="toast-sena" id="toastSena"></div>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="s-oro" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.4" fill="currentColor"/></symbol>
+  <symbol id="s-copa" viewBox="0 0 24 24"><path d="M5 3h14l-1.4 8.2A5.6 5.6 0 0 1 12 16a5.6 5.6 0 0 1-5.6-4.8L5 3z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 16v4M8.5 21h7" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="s-espada" viewBox="0 0 24 24"><path d="M12 2l1.6 12.5L12 22l-1.6-7.5L12 2z" fill="currentColor"/><path d="M7 8h10" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="s-basto" viewBox="0 0 24 24"><path d="M6 20L17 4" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/><path d="M15.5 3.5c1.6-1 3.4.4 2.9 2.2-.4 1.5-2.5 2-3.6.9-1-1-.9-2.7.7-3.1z" fill="currentColor"/></symbol>
+</svg>
+
+<!-- La configuración de Firebase vive en js/firebase-config.js
+     (así no hay que repetirla en cada página). Editá ese archivo. -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getDatabase, ref, set, get, update, onValue, onDisconnect } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { firebaseConfig } from "./js/firebase-config.js";
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getDatabase(app);
+  const $ = id => document.getElementById(id);
+
+  const PALOS = [{id:'oro',s:'s-oro'},{id:'copa',s:'s-copa'},{id:'espada',s:'s-espada'},{id:'basto',s:'s-basto'}];
+  const VALORES = [1,2,3,4,5,6,7,10,11,12];
+
+  const SENAS = [
+    {id:'guino', emoji:'😉', txt:'Guiño', cond:c=>c.palo==='espada'&&c.valor===1},
+    {id:'cejas', emoji:'🤨', txt:'Cejas arriba', cond:c=>c.palo==='basto'&&c.valor===1},
+    {id:'boca-der', emoji:'😏', txt:'Boca a la derecha', cond:c=>c.palo==='espada'&&c.valor===7},
+    {id:'boca-izq', emoji:'😏', txt:'Boca a la izquierda', cond:c=>c.palo==='oro'&&c.valor===7},
+    {id:'labio', emoji:'😬', txt:'Morderse el labio', cond:c=>c.valor===3},
+    {id:'beso', emoji:'😘', txt:'Beso', cond:c=>c.valor===2},
+    {id:'boca-abierta', emoji:'😮', txt:'Abrir la boca', cond:c=>c.valor===1 && (c.palo==='oro'||c.palo==='copa')},
+    {id:'hombro', emoji:'🫲', txt:'Tocarse el hombro', cond:c=>c.valor===12},
+    {id:'codo', emoji:'💪', txt:'Tocarse el codo', cond:c=>c.valor===11},
+    {id:'antebrazo', emoji:'🤚', txt:'Tocarse el antebrazo', cond:c=>c.valor===10},
+  ];
+
+  function jerarquia(c){
+    if(c.palo==='espada'&&c.valor===1) return 14;
+    if(c.palo==='basto'&&c.valor===1) return 13;
+    if(c.palo==='espada'&&c.valor===7) return 12;
+    if(c.palo==='oro'&&c.valor===7) return 11;
+    if(c.valor===3) return 10;
+    if(c.valor===2) return 9;
+    if(c.valor===1) return 8;
+    if(c.valor===12) return 7;
+    if(c.valor===11) return 6;
+    if(c.valor===10) return 5;
+    if(c.valor===7) return 4;
+    if(c.valor===6) return 3;
+    if(c.valor===5) return 2;
+    if(c.valor===4) return 1;
+    return 0;
+  }
+  function valorEnvido(c){ return c.valor>=10 ? 0 : c.valor; }
+  function calcularEnvido(mano){
+    const porPalo = {};
+    mano.forEach(c=>{ (porPalo[c.palo]=porPalo[c.palo]||[]).push(c); });
+    let mejor = null;
+    Object.values(porPalo).forEach(g=>{
+      if(g.length>=2){
+        const vals = g.map(valorEnvido).sort((a,b)=>b-a);
+        const s = vals[0]+vals[1]+20;
+        if(mejor===null || s>mejor) mejor = s;
+      }
+    });
+    return mejor!==null ? mejor : Math.max(...mano.map(valorEnvido));
+  }
+  function crearMazoMezclado(){
+    const c = [];
+    PALOS.forEach(p=>VALORES.forEach(v=>c.push({palo:p.id, s:p.s, valor:v})));
+    for(let i=c.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [c[i],c[j]]=[c[j],c[i]]; }
+    return c;
+  }
+  window.cartaFallback = function(img, valor, palo, simbolo){
+    img.outerHTML = '<div class="carta '+palo+'"><div class="num">'+valor+'</div><svg><use href="#'+simbolo+'"/></svg></div>';
+  };
+  function cartaHTML(c){
+    return '<img src="images/cartas/'+c.valor+'-'+c.palo+'.png" class="carta carta-img" alt="'+c.valor+' de '+c.palo+'" onerror="cartaFallback(this,'+c.valor+",'"+c.palo+"','"+c.s+"')\">";
+  }
+  function equipoDe(seat){ return seat%2; }
+  function companeroDe(seat){ return (seat+2)%4; }
+  function escapeHtml(str){ const d=document.createElement('div'); d.textContent=str; return d.innerHTML; }
+
+  // ==================== IA de los bots ====================
+  function esBotUid(id){ return typeof id==='string' && id.indexOf('bot-')===0; }
+
+  function soyControladorDeBots(){
+    const humanos = [0,1,2,3].filter(s => seatToUid[s] && !esBotUid(seatToUid[s]));
+    if(humanos.length===0) return false;
+    return miSeat === Math.min(...humanos);
+  }
+
+  let botAccionEnCurso = false;
+
+  function elegirCartaBot(seat, p){
+    const mano = p.manos[seat]||[];
+    const usadas = p.usadas[seat]||[];
+    const disponibles = mano.map((c,idx)=>({c,idx})).filter(o=>!usadas.includes(o.idx));
+    if(disponibles.length===0) return null;
+    const jerarquiasEnMesa = p.cartasJugadasBaza.map(j=>jerarquia(j.carta));
+    const mejorEnMesa = jerarquiasEnMesa.length ? Math.max(...jerarquiasEnMesa) : -1;
+    const queGanan = disponibles.filter(o=>jerarquia(o.c) > mejorEnMesa);
+    if(queGanan.length>0){
+      queGanan.sort((a,b)=>jerarquia(a.c)-jerarquia(b.c)); // la más chica que alcance para ganar
+      return queGanan[0].idx;
+    }
+    disponibles.sort((a,b)=>jerarquia(a.c)-jerarquia(b.c)); // si no puede ganar, la más baja
+    return disponibles[0].idx;
+  }
+
+  function mejorEnvidoDelEquipo(equipo, p){
+    const seats = equipo===0 ? [0,2] : [1,3];
+    return Math.max(...seats.map(s=>calcularEnvido(p.manos[s]||[])));
+  }
+
+  function gestionarTurnoBots(p){
+    if(!soyControladorDeBots() || botAccionEnCurso || p.terminada) return;
+
+    if(p.trucoState.pendiente){
+      const cantadorEquipo = equipoDe(p.trucoState.cantadoPor);
+      const hayHumanoQuePuedaResponder = [0,1,2,3].some(s=> equipoDe(s)!==cantadorEquipo && seatToUid[s] && !esBotUid(seatToUid[s]));
+      if(hayHumanoQuePuedaResponder) return;
+      const seatBot = [0,1,2,3].find(s=> equipoDe(s)!==cantadorEquipo && esBotUid(seatToUid[s]));
+      if(seatBot===undefined) return;
+      botAccionEnCurso = true;
+      setTimeout(()=>{
+        // acepta si su mano tiene alguna carta fuerte (mata, siete, o un 3), si no declina
+        const tieneCartaFuerte = (p.manos[seatBot]||[]).some(c=>jerarquia(c)>=9);
+        responderTruco(tieneCartaFuerte || p.trucoState.nivel===1, seatBot);
+        botAccionEnCurso = false;
+      }, 900 + Math.random()*700);
+      return;
+    }
+
+    if(p.envidoState.pendiente){
+      const cantadorEquipo = equipoDe(p.envidoState.cantadoPor);
+      const hayHumanoQuePuedaResponder = [0,1,2,3].some(s=> equipoDe(s)!==cantadorEquipo && seatToUid[s] && !esBotUid(seatToUid[s]));
+      if(hayHumanoQuePuedaResponder) return;
+      const seatBot = [0,1,2,3].find(s=> equipoDe(s)!==cantadorEquipo && esBotUid(seatToUid[s]));
+      if(seatBot===undefined) return;
+      botAccionEnCurso = true;
+      setTimeout(()=>{
+        const propio = mejorEnvidoDelEquipo(equipoDe(seatBot), p);
+        const ultimo = p.envidoState.chain[p.envidoState.chain.length-1];
+        if(propio >= 31 && ultimo!=='falta'){
+          // mano muy fuerte: escala en vez de solo aceptar
+          cantarEnvido(ultimo==='real' ? 'falta' : 'real', seatBot);
+        } else {
+          responderEnvido(propio >= 24);
+        }
+        botAccionEnCurso = false;
+      }, 900 + Math.random()*700);
+      return;
+    }
+
+    if(p.envidoState.chain && p.envidoState.chain.length>0 && !p.envidoState.pendiente && !p.envidoState.resuelto){
+      const declarados = p.envidoState.declarados || {};
+      const botSinDeclarar = [0,1,2,3].find(s=> esBotUid(seatToUid[s]) && declarados[s]===undefined);
+      if(botSinDeclarar!==undefined){
+        botAccionEnCurso = true;
+        setTimeout(()=>{
+          declararTantos(botSinDeclarar);
+          botAccionEnCurso = false;
+        }, 500 + Math.random()*600);
+      }
+      return;
+    }
+
+    if(esBotUid(seatToUid[p.turnoSeat])){
+      const seatBot = p.turnoSeat;
+      const puedeCantarEnvido = !p.envidoState.resuelto && p.indiceBaza===0 && p.envidoState.chain.length===0;
+      if(puedeCantarEnvido){
+        const propio = calcularEnvido(p.manos[seatBot]||[]);
+        if(propio >= 27){
+          botAccionEnCurso = true;
+          setTimeout(()=>{
+            cantarEnvido('envido', seatBot);
+            botAccionEnCurso = false;
+          }, 700 + Math.random()*900);
+          return;
+        }
+      }
+      botAccionEnCurso = true;
+      setTimeout(()=>{
+        const idx = elegirCartaBot(seatBot, p);
+        if(idx!==null) jugarCarta(idx, seatBot);
+        botAccionEnCurso = false;
+      }, 700 + Math.random()*900);
+    }
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const codigo = (params.get('sala')||'').toUpperCase();
+  let uid=null, miSeat=null, seatToUid={}, uidToNombre={}, ultimaSenaVista=0, presenciaData={}, ultimaSenaRecibida=null;
+
+  if(!codigo){ document.body.innerHTML = '<p style="color:#fff;text-align:center;margin-top:60px;">Falta el código de sala en la URL.</p>'; }
+
+  onAuthStateChanged(auth, user=>{ if(user){ uid=user.uid; arrancar(); } });
+  signInAnonymously(auth).catch(err=>{
+    $('cargando').innerHTML = '<h2>No se pudo conectar</h2><p>' + err.message + '</p>';
+  });
+
+  async function arrancar(){
+    const salaRef = ref(db, 'salas/' + codigo);
+    const snap = await get(salaRef);
+    if(!snap.exists()){
+      $('cargando').innerHTML = '<h2>No se encontró la mesa</h2>';
+      return;
+    }
+    const data = snap.val();
+    const jugadores = data.jugadores || {};
+
+    if(data.equipos && Object.keys(data.equipos).length===4){
+      // asientos según los equipos armados en la sala: equipo A -> 0 y 2 (enfrentados), equipo B -> 1 y 3
+      // se recorre "equipos" (no "jugadores") porque es la fuente de verdad de quién quedó en la mesa
+      const porEquipo = {0:[], 1:[]};
+      Object.keys(data.equipos)
+        .sort((a,b)=>{
+          const oa = jugadores[a] ? (jugadores[a].orden||0) : 99;
+          const ob = jugadores[b] ? (jugadores[b].orden||0) : 99;
+          return oa-ob;
+        })
+        .forEach(id=>{
+          const info = data.equipos[id];
+          const eq = (info && typeof info==='object') ? info.equipo : info;
+          if(eq===0 || eq===1) porEquipo[eq].push(id);
+        });
+      const asientosPorEquipo = {0:[0,2], 1:[1,3]};
+      [0,1].forEach(eq=>{
+        porEquipo[eq].forEach((id, i)=>{
+          const seat = asientosPorEquipo[eq][i];
+          seatToUid[seat]=id;
+          const info = data.equipos[id];
+          const nombreDesdeEquipos = (info && typeof info==='object') ? info.nombre : null;
+          uidToNombre[id] = nombreDesdeEquipos || (jugadores[id] ? jugadores[id].nombre : (id.indexOf('bot-')===0 ? 'Bot' : 'Jugador'));
+          if(id===uid) miSeat=seat;
+        });
+      });
+    } else {
+      // sin equipos armados (mesas viejas): se ubican por orden de llegada
+      Object.entries(jugadores).sort((a,b)=>(a[1].orden||0)-(b[1].orden||0)).forEach(([id,j],idx)=>{
+        seatToUid[idx]=id; uidToNombre[id]=j.nombre;
+        if(id===uid) miSeat=idx;
+      });
+    }
+    if(miSeat===null){
+      const diag = {
+        miUid: uid,
+        jugadoresKeys: Object.keys(jugadores),
+        equipos: data.equipos || null,
+        anfitrion: data.anfitrion
+      };
+      console.log('Diagnóstico "no estás sentado":', diag);
+      $('cargando').innerHTML = '<h2>No estás sentado en esta mesa</h2>'
+        + '<p style="opacity:.7; font-size:.85rem; margin:10px 0 18px;">Tu usuario no aparece en los equipos armados para esta partida.</p>'
+        + '<a href="sala.html?sala=' + codigo + '" class="btn btn-fantasma" style="margin-bottom:16px; display:inline-block;">Volver a la sala</a>'
+        + '<pre style="text-align:left; font-size:.72rem; background:rgba(0,0,0,.3); padding:10px; border-radius:8px; overflow-x:auto; max-width:100%; white-space:pre-wrap;">' + escapeHtml(JSON.stringify(diag, null, 2)) + '</pre>';
+      return;
+    }
+
+    // si no existe la partida todavía, el jugador del asiento 0 arma la primera ronda en espera
+    // (el primer repartidor de la mesa se sortea al azar)
+    if(!data.partida && miSeat===0){
+      await set(ref(db,'salas/'+codigo+'/partida'), crearRondaEnEspera(Math.floor(Math.random()*4), data.objetivo||30));
+    }
+
+    $('cargando').style.display='none';
+    $('esperandoReparto').style.display='block';
+
+    let partidaVista = false;
+    $('btnRepartirManual').addEventListener('click', async ()=>{
+      const s2 = await get(ref(db,'salas/'+codigo+'/partida'));
+      if(!s2.exists()){
+        await set(ref(db,'salas/'+codigo+'/partida'), crearRondaEnEspera(Math.floor(Math.random()*4), data.objetivo||30));
+      }
+    });
+
+    // Presencia: si se desconecta (pantalla bloqueada, wifi, etc.) NO se lo saca de la mesa,
+    // solo se marca como desconectado hasta que vuelva. Se repone sola en cada reconexión.
+    const presenciaRef = ref(db,'salas/'+codigo+'/presencia/'+miSeat);
+    onValue(ref(db,'.info/connected'), (s)=>{
+      if(s.val()===true){
+        onDisconnect(presenciaRef).update({ conectado:false, ts: Date.now() });
+        set(presenciaRef, { conectado:true, ts: Date.now() });
+      }
+    });
+
+    onValue(ref(db,'salas/'+codigo+'/presencia'), s=>{
+      presenciaData = s.val() || {};
+      actualizarAsientosInfo();
+    });
+
+    onValue(ref(db,'salas/'+codigo), (s)=>{
+      const d = s.val();
+      if(!d || !d.partida) return;
+      partidaVista = true;
+      $('esperandoReparto').style.display='none';
+      render(d.partida);
+    });
+    onValue(ref(db,'salas/'+codigo+'/senas/'+miSeat), (s)=>{
+      const sena = s.val();
+      if(sena && sena.ts>ultimaSenaVista){
+        ultimaSenaVista = sena.ts;
+        ultimaSenaRecibida = sena;
+        mostrarToast(sena);
+        if(ultimaPartida) renderPilasDeCartas(ultimaPartida);
+      }
+    });
+  }
+
+  function crearRondaEnEspera(dealerIndex, objetivo, puntosPrevios, logPrevio){
+    return {
+      fase: 'repartiendo',
+      dealerIndex, manoIndex:(dealerIndex+1)%4, turnoSeat:null, objetivo: objetivo||30,
+      manos:{}, usadas:{},
+      cartasJugadasBaza:[], bazas:[], indiceBaza:0,
+      trucoState:{nivel:0,valor:1,cantadoPor:null,pendiente:false},
+      envidoState:{acumulado:0,chain:[],pendiente:false,cantadoPor:null,resuelto:false,declarados:{}},
+      puntos: puntosPrevios || {"0":0,"1":0},
+      log: logPrevio || [], mostrarCartas:{}, terminada:false
+    };
+  }
+
+  async function guardarPartida(p){
+    await set(ref(db,'salas/'+codigo+'/partida'), p);
+  }
+  function agregarLog(p, txt, destacado){
+    p.log = p.log || [];
+    p.log.push({txt, destacado:!!destacado});
+    if(p.log.length>40) p.log.shift();
+  }
+
+  let ultimaPartida = null;
+
+  function anguloRelativo(seat){
+    // "vos" siempre abajo, tu compañero enfrente arriba, los rivales a los costados
+    const rel = (seat - miSeat + 4) % 4;
+    return (90 - rel*90) * Math.PI/180;
+  }
+
+  function actualizarAsientosInfo(){
+    const mesa = $('mesaRedonda');
+    if(!mesa) return;
+    mesa.querySelectorAll('.asiento-redondo').forEach(el=>el.remove());
+    const w = mesa.clientWidth || 300;
+    const cx = w/2, cy = w/2;
+    const radio = w/2 + 26;
+    const p = ultimaPartida;
+    [0,1,2,3].forEach(s=>{
+      const angle = anguloRelativo(s);
+      const x = cx + radio*Math.cos(angle);
+      const y = cy + radio*Math.sin(angle);
+      const nom = uidToNombre[seatToUid[s]] || ('Asiento '+s);
+      const conectado = !presenciaData[s] || presenciaData[s].conectado!==false;
+      const punto = conectado ? '🟢' : '🟡';
+      const equipoClase = equipoDe(s)===0 ? 'equipo-a' : 'equipo-b';
+      const esDealer = p && p.fase==='jugando' && p.dealerIndex===s;
+      const cantoActivo = (p && ((p.trucoState&&p.trucoState.pendiente) || (p.envidoState&&p.envidoState.pendiente)));
+      const esTurno = (p && !p.terminada && !cantoActivo && p.turnoSeat===s) ? ' turno' : '';
+      const esVos = s===miSeat ? ' vos' : '';
+      const div = document.createElement('div');
+      div.className = 'asiento-redondo ' + equipoClase + esTurno + esVos;
+      div.style.left = x+'px';
+      div.style.top = y+'px';
+      div.innerHTML = `<div class="nom">${punto} ${esDealer?'🂠 ':''}${escapeHtml(nom)}${s===miSeat?' (vos)':''}</div>`;
+      mesa.appendChild(div);
+    });
+  }
+  window.addEventListener('resize', ()=>{
+    actualizarAsientosInfo();
+    if(ultimaPartida){ renderPilasDeCartas(ultimaPartida); renderTantosDeclarados(ultimaPartida); }
+  });
+
+  // Aleatoriedad "fija": misma seed => siempre el mismo resultado,
+  // así el desparramo de cada carta no cambia entre una actualización y otra.
+  function seededRandom(seed){
+    const x = Math.sin(seed*999)*10000;
+    return x - Math.floor(x);
+  }
+
+  function renderPilasDeCartas(p){
+    const mesa = $('mesaRedonda');
+    if(!mesa) return;
+    mesa.querySelectorAll('.pila-jugador').forEach(el=>el.remove());
+    mesa.querySelectorAll('.centro-mesa').forEach(el=>el.remove());
+    mesa.querySelectorAll('.cartas-restantes').forEach(el=>el.remove());
+    mesa.querySelectorAll('.mano-en-mesa').forEach(el=>el.remove());
+    mesa.querySelectorAll('.mano-companero-en-mesa').forEach(el=>el.remove());
+
+    const w = mesa.clientWidth || 300;
+    const cx = w/2, cy = w/2;
+    const radioPila = w * 0.20;
+    let totalCartas = 0;
+    const seatCompanero = companeroDe(miSeat);
+    const companeroUid = seatToUid[seatCompanero];
+    const companeroMeMuestra = !!(companeroUid && p.mostrarCartas && p.mostrarCartas[companeroUid]);
+
+    for(let s=0;s<4;s++){
+      const usadas = p.usadas[s]||[];
+      const angle = anguloRelativo(s);
+
+      if(usadas.length>0){
+        totalCartas += usadas.length;
+        const baseX = cx + radioPila*Math.cos(angle);
+        const baseY = cy + radioPila*Math.sin(angle);
+
+        const cont = document.createElement('div');
+        cont.className = 'pila-jugador';
+        cont.style.left = baseX+'px';
+        cont.style.top = baseY+'px';
+
+        usadas.forEach((idx, i)=>{
+          const carta = p.manos[s][idx];
+          if(!carta) return;
+          const seed = (s+1)*37 + (idx+1)*11 + i*5;
+          const rot = (seededRandom(seed)*2-1) * 18;
+          const dx = (seededRandom(seed+1)*2-1) * 12;
+          const dy = (seededRandom(seed+2)*2-1) * 12;
+
+          const esGanadora = p.bazas[i] && p.bazas[i].ganadorSeat === s;
+          const div = document.createElement('div');
+          div.className = 'carta-en-pila' + (esGanadora ? ' ganadora' : '');
+          div.style.transform = `translate(-50%,-50%) translate(${dx}px, ${dy}px) rotate(${rot}deg)`;
+          div.style.zIndex = String(i+1);
+          div.innerHTML = cartaHTML(carta);
+          cont.appendChild(div);
+        });
+
+        mesa.appendChild(cont);
+      }
+
+      // el compañero, si te está mostrando: cartas reveladas en su lugar. Si no: dorsitos (+ la seña si mandó una)
+      const restantes = 3 - usadas.length;
+      if(s!==miSeat && restantes>0 && p.fase==='jugando'){
+        if(s===seatCompanero && companeroMeMuestra){
+          renderManoCompaneroEnMesa(p, seatCompanero, angle);
+        } else {
+          const radioRestantes = w*0.37;
+          const rx = cx + radioRestantes*Math.cos(angle);
+          const ry = cy + radioRestantes*Math.sin(angle);
+          const cont2 = document.createElement('div');
+          cont2.className = 'cartas-restantes';
+          cont2.style.position='absolute';
+          cont2.style.left = rx+'px'; cont2.style.top = ry+'px';
+          cont2.style.transform = 'translate(-50%,-50%)';
+          for(let k=0;k<restantes;k++){
+            const d = document.createElement('div');
+            d.className='mini-dorso';
+            cont2.appendChild(d);
+          }
+          if(s===seatCompanero && ultimaSenaRecibida){
+            const badge = document.createElement('div');
+            badge.className = 'sena-badge-mini';
+            badge.textContent = ultimaSenaRecibida.emoji;
+            badge.title = 'Tu compañero te avisó: ' + ultimaSenaRecibida.txt;
+            cont2.appendChild(badge);
+          }
+          mesa.appendChild(cont2);
+        }
+      }
+    }
+
+    if(p.fase==='jugando') renderManoPropiaEnMesa(p);
+
+    if(totalCartas===0 && p.fase==='jugando'){
+      const msg = document.createElement('div');
+      msg.className = 'centro-mesa';
+      msg.innerHTML = '<span class="sin-cartas">Esperando la primera carta...</span>';
+      mesa.appendChild(msg);
+    }
+  }
+
+  function renderManoCompaneroEnMesa(p, seatCompanero, angle){
+    const mesa = $('mesaRedonda');
+    if(!mesa) return;
+    const w = mesa.clientWidth || 300;
+    const cx = w/2, cy = w/2;
+    const radio = w*0.37;
+    const baseX = cx + radio*Math.cos(angle);
+    const baseY = cy + radio*Math.sin(angle);
+
+    const cont = document.createElement('div');
+    cont.className = 'mano-companero-en-mesa';
+    cont.style.left = baseX+'px';
+    cont.style.top = baseY+'px';
+
+    const usadasComp = p.usadas[seatCompanero]||[];
+    const disponibles = (p.manos[seatCompanero]||[]).map((c,idx)=>({c,idx})).filter(o=>!usadasComp.includes(o.idx));
+    const n = disponibles.length;
+    disponibles.forEach((o,i)=>{
+      const offset = (i - (n-1)/2) * 26;
+      const div = document.createElement('div');
+      div.className = 'carta-companero';
+      div.style.transform = `translate(${offset}px,0)`;
+      div.innerHTML = cartaHTML(o.c);
+      cont.appendChild(div);
+    });
+
+    mesa.appendChild(cont);
+  }
+
+  function renderManoPropiaEnMesa(p){
+    const mesa = $('mesaRedonda');
+    if(!mesa) return;
+    const w = mesa.clientWidth || 300;
+    const cx = w/2, cy = w/2;
+    const angle = anguloRelativo(miSeat); // siempre abajo, en frente tuyo
+    const radioMano = w*0.40;
+    const baseX = cx + radioMano*Math.cos(angle);
+    const baseY = cy + radioMano*Math.sin(angle);
+
+    const cont = document.createElement('div');
+    cont.className = 'mano-en-mesa';
+    cont.style.left = baseX+'px';
+    cont.style.top = baseY+'px';
+
+    const usadasMias = p.usadas[miSeat]||[];
+    const yaJugueEstaBaza = p.cartasJugadasBaza.some(j=>j.seat===miSeat);
+    const bloqueado = p.trucoState.pendiente || p.envidoState.pendiente || p.turnoSeat!==miSeat || yaJugueEstaBaza;
+
+    const disponibles = (p.manos[miSeat]||[]).map((c,idx)=>({c,idx})).filter(o=>!usadasMias.includes(o.idx));
+    const n = disponibles.length;
+    disponibles.forEach((o,i)=>{
+      const offset = (i - (n-1)/2) * 34;
+      const rot = (i - (n-1)/2) * 8;
+      const div = document.createElement('div');
+      div.className = 'carta-jugable' + (bloqueado ? ' bloqueada' : '');
+      div.style.setProperty('--tf', `translate(${offset}px,0) rotate(${rot}deg)`);
+      div.style.setProperty('--z', String(i+1));
+      div.innerHTML = cartaHTML(o.c);
+      if(!bloqueado){
+        div.addEventListener('click', ()=>jugarCarta(o.idx));
+      }
+      const sena = SENAS.find(s=>s.cond(o.c));
+      if(sena){
+        const badge = document.createElement('div');
+        badge.className = 'sena-badge';
+        badge.textContent = sena.emoji;
+        badge.title = 'Avisarle a tu compañero: ' + sena.txt;
+        badge.addEventListener('click', (ev)=>{ ev.stopPropagation(); enviarSena(sena); });
+        div.appendChild(badge);
+      }
+      cont.appendChild(div);
+    });
+
+    mesa.appendChild(cont);
+  }
+
+  function renderTantosDeclarados(p){
+    const mesa = $('mesaRedonda');
+    if(!mesa) return;
+    mesa.querySelectorAll('.tantos-declarados').forEach(el=>el.remove());
+    if(!p.envidoState || !p.envidoState.declarados) return;
+    const w = mesa.clientWidth || 300;
+    const cx = w/2, cy = w/2;
+    const radio = w/2 - 8;
+    Object.entries(p.envidoState.declarados).forEach(([seatStr, valor])=>{
+      const s = parseInt(seatStr,10);
+      const angle = anguloRelativo(s);
+      const x = cx + radio*Math.cos(angle);
+      const y = cy + radio*Math.sin(angle);
+      const div = document.createElement('div');
+      div.className = 'tantos-declarados';
+      div.style.left = x+'px'; div.style.top = y+'px';
+      div.textContent = valor;
+      mesa.appendChild(div);
+    });
+  }
+
+  function mostrarFlotantePuntos(equipo, cantidad){
+    const cont = document.querySelector('.marcador .equipo[data-equipo="'+equipo+'"]');
+    if(!cont) return;
+    const span = document.createElement('div');
+    span.className = 'puntos-flotantes';
+    span.textContent = '+' + cantidad;
+    cont.appendChild(span);
+    setTimeout(()=>span.remove(), 1400);
+  }
+
+  function animarReparto(dealerSeat){
+    const mesa = $('mesaRedonda');
+    if(!mesa) return;
+    const w = mesa.clientWidth || 300;
+    const cx = w/2, cy = w/2;
+    const angleDealer = anguloRelativo(dealerSeat);
+    const deckX = cx + (w*0.12)*Math.cos(angleDealer);
+    const deckY = cy + (w*0.12)*Math.sin(angleDealer);
+    const ordenReparto = [1,2,3,4].map(i=>(dealerSeat+i)%4); // arranca en el jugador siguiente al que reparte
+    let delay = 0;
+    for(let vuelta=0; vuelta<3; vuelta++){
+      ordenReparto.forEach(seat=>{
+        setTimeout(()=>{
+          const angle = anguloRelativo(seat);
+          const destX = cx + (w*0.24)*Math.cos(angle);
+          const destY = cy + (w*0.24)*Math.sin(angle);
+          const div = document.createElement('div');
+          div.className = 'carta dorso';
+          div.style.position='absolute';
+          div.style.left = deckX+'px'; div.style.top = deckY+'px';
+          div.style.width='48px'; div.style.height='70px';
+          div.style.transform='translate(-50%,-50%)';
+          div.style.transition='left .4s ease, top .4s ease, transform .4s ease';
+          div.style.zIndex='100';
+          mesa.appendChild(div);
+          requestAnimationFrame(()=>{
+            requestAnimationFrame(()=>{
+              div.style.left = destX+'px';
+              div.style.top = destY+'px';
+              div.style.transform = 'translate(-50%,-50%) rotate(' + ((Math.random()*30)-15) + 'deg)';
+            });
+          });
+          setTimeout(()=>div.remove(), 480);
+        }, delay);
+        delay += 100;
+      });
+    }
+  }
+
+  // ---------- Render ----------
+  let ultimoRenderJSON = '';
+  function normalizarPartida(p){
+    p.fase = p.fase || 'jugando';
+    p.cartasJugadasBaza = p.cartasJugadasBaza || [];
+    p.bazas = p.bazas || [];
+    p.log = p.log || [];
+    p.usadas = p.usadas || {};
+    p.manos = p.manos || {};
+    p.mostrarCartas = p.mostrarCartas || {};
+    p.puntos = p.puntos || {"0":0,"1":0};
+    p.trucoState = p.trucoState || {nivel:0,valor:1,cantadoPor:null,pendiente:false};
+    p.envidoState = p.envidoState || {acumulado:0,chain:[],pendiente:false,cantadoPor:null,resuelto:false,declarados:{}};
+    p.envidoState.declarados = p.envidoState.declarados || {};
+    p.envidoState.chain = p.envidoState.chain || [];
+    for(let s=0;s<4;s++){ p.usadas[s] = p.usadas[s] || []; p.manos[s] = p.manos[s] || []; }
+    return p;
+  }
+
+  let ultimaFaseVista = null;
+  let puntosAnteriores = null;
+
+  function render(p){
+    p = normalizarPartida(p);
+    const json = JSON.stringify(p);
+    if(json===ultimoRenderJSON) return;
+    ultimoRenderJSON = json;
+    ultimaPartida = p;
+
+    if(p.terminada){
+      $('juego').style.display='none';
+      $('finScreen').style.display='block';
+      const miEquipo0 = equipoDe(miSeat);
+      const gano = (p.puntos['0']||0)>(p.puntos['1']||0) ? 0 : 1;
+      $('finTexto').textContent = (gano===miEquipo0 ? '¡Ganó tu equipo!' : 'Ganó el equipo rival');
+      ultimaFaseVista = p.fase;
+      return;
+    }
+
+    $('finScreen').style.display='none';
+    $('juego').style.display='block';
+
+    const repartiendoAhora = p.fase === 'repartiendo';
+    if(repartiendoAhora && ultimaFaseVista!=='repartiendo'){
+      ultimaSenaRecibida = null;
+    }
+    if(!repartiendoAhora && ultimaFaseVista==='repartiendo'){
+      animarReparto(p.dealerIndex);
+    }
+    ultimaFaseVista = p.fase;
+
+    const miEquipo = equipoDe(miSeat);
+    const companero = companeroDe(miSeat);
+
+    $('marcador').innerHTML = `
+      <div class="equipo mio" data-equipo="${miEquipo}"><div class="nom">Nosotros</div><div class="pts">${p.puntos[miEquipo]||0}</div></div>
+      <div class="equipo" data-equipo="${(miEquipo+1)%2}"><div class="nom">Ellos</div><div class="pts">${p.puntos[(miEquipo+1)%2]||0}</div></div>`;
+
+    if(puntosAnteriores){
+      [0,1].forEach(eq=>{
+        const antes = puntosAnteriores[eq]||0;
+        const ahora = p.puntos[eq]||0;
+        if(ahora>antes) mostrarFlotantePuntos(eq, ahora-antes);
+      });
+    }
+    puntosAnteriores = {0:p.puntos['0']||0, 1:p.puntos['1']||0};
+
+    actualizarAsientosInfo();
+    renderPilasDeCartas(p);
+    renderTantosDeclarados(p);
+
+    // overlay de reparto, integrado sobre la misma mesa (sin cambiar de pantalla)
+    const overlay = $('overlayReparto');
+    if(repartiendoAhora){
+      overlay.style.display='flex';
+      const nombreDealer = uidToNombre[seatToUid[p.dealerIndex]] || ('Asiento '+p.dealerIndex);
+      $('textoReparto').textContent = 'Reparte ' + nombreDealer + (p.dealerIndex===miSeat ? ' (vos)' : '');
+      $('btnRepartirYo').style.display = (p.dealerIndex===miSeat) ? 'inline-block' : 'none';
+      if(esBotUid(seatToUid[p.dealerIndex]) && soyControladorDeBots() && !botAccionEnCurso){
+        botAccionEnCurso = true;
+        setTimeout(()=>{ repartirComoDealer(p.dealerIndex); botAccionEnCurso=false; }, 900);
+      }
+    } else {
+      overlay.style.display='none';
+    }
+
+    $('chkMostrar').checked = !!(p.mostrarCartas && p.mostrarCartas[uid]);
+
+    if(repartiendoAhora){
+      $('turnoInfo').textContent = '';
+      $('cantosDisponibles').innerHTML = '';
+      $('btnMazo').style.display = 'none';
+    } else {
+      $('turnoInfo').textContent = p.trucoState.pendiente
+        ? 'Respondiendo un canto de truco...'
+        : p.envidoState.pendiente
+          ? 'Respondiendo un canto de envido...'
+          : 'Turno de ' + (uidToNombre[seatToUid[p.turnoSeat]] || ('Asiento '+p.turnoSeat)) + (p.turnoSeat===miSeat?' (vos)':'');
+      renderCantos(p);
+      const esMiTurnoLibre = p.turnoSeat===miSeat && !p.trucoState.pendiente && !p.envidoState.pendiente
+        && !(p.envidoState.chain && p.envidoState.chain.length>0 && !p.envidoState.resuelto);
+      $('btnMazo').style.display = esMiTurnoLibre ? 'inline-block' : 'none';
+    }
+
+    gestionarTurnoBots(p);
+
+    const logCont = $('log');
+    logCont.innerHTML = '';
+    (p.log||[]).forEach(item=>{
+      const it = document.createElement('div');
+      it.className = 'log-item' + (item.destacado?' destacado':'');
+      it.textContent = item.txt;
+      logCont.appendChild(it);
+    });
+    logCont.scrollTop = logCont.scrollHeight;
+  }
+
+  function renderCantos(p){
+    const cont = $('cantosDisponibles');
+    cont.innerHTML = '';
+    const miEquipo = equipoDe(miSeat);
+
+    if(p.trucoState.pendiente){
+      const cantadorEquipo = equipoDe(p.trucoState.cantadoPor);
+      if(cantadorEquipo!==miEquipo){
+        boton(cont,'Quiero', ()=>responderTruco(true));
+        boton(cont,'No quiero', ()=>responderTruco(false));
+        if(p.trucoState.nivel===1) boton(cont,'Retruco', ()=>cantarTruco(2));
+        if(p.trucoState.nivel===2) boton(cont,'Vale cuatro', ()=>cantarTruco(3));
+      }
+      return;
+    }
+    if(p.envidoState.pendiente){
+      const cantadorEquipo = equipoDe(p.envidoState.cantadoPor);
+      if(cantadorEquipo!==miEquipo){
+        boton(cont,'Quiero', ()=>responderEnvido(true));
+        boton(cont,'No quiero', ()=>responderEnvido(false));
+        const u = p.envidoState.chain[p.envidoState.chain.length-1];
+        if(u==='envido') boton(cont,'Envido', ()=>cantarEnvido('envido'));
+        if(u==='envido'||u==='envido2') boton(cont,'Real envido', ()=>cantarEnvido('real'));
+        boton(cont,'Falta envido', ()=>cantarEnvido('falta'));
+      }
+      return;
+    }
+    if(p.envidoState.chain && p.envidoState.chain.length>0 && !p.envidoState.pendiente && !p.envidoState.resuelto){
+      const declarados = p.envidoState.declarados || {};
+      if(declarados[miSeat]===undefined){
+        const miValor = calcularEnvido(p.manos[miSeat]||[]);
+        boton(cont, 'Cantar tus tantos (' + miValor + ')', ()=>declararTantos());
+      } else {
+        const faltan = [0,1,2,3].filter(s=>declarados[s]===undefined && !esBotUid(seatToUid[s]));
+        const txt = document.createElement('div');
+        txt.style.cssText = 'font-size:.8rem; opacity:.7; text-align:center; width:100%;';
+        txt.textContent = faltan.length>0 ? 'Esperando que canten sus tantos...' : 'Contando los tantos...';
+        cont.appendChild(txt);
+      }
+      return;
+    }
+    if(p.turnoSeat!==miSeat) return;
+    if(p.trucoState.nivel<3){
+      const etiquetas=['Truco','Retruco','Vale cuatro'];
+      boton(cont, etiquetas[p.trucoState.nivel], ()=>cantarTruco(p.trucoState.nivel+1));
+    }
+    if(!p.envidoState.resuelto && p.indiceBaza===0 && p.envidoState.chain.length===0){
+      boton(cont,'Envido', ()=>cantarEnvido('envido'));
+      boton(cont,'Real envido', ()=>cantarEnvido('real'));
+      boton(cont,'Falta envido', ()=>cantarEnvido('falta'));
+    }
+  }
+  function boton(cont, txt, fn){
+    const b = document.createElement('button');
+    b.className='btn btn-fantasma'; b.textContent=txt;
+    b.addEventListener('click', fn);
+    cont.appendChild(b);
+  }
+
+  // ---------- Acciones (leen, mutan y graban la partida) ----------
+  async function conPartida(fn){
+    const snap = await get(ref(db,'salas/'+codigo+'/partida'));
+    let p = snap.val();
+    if(!p) return;
+    p = normalizarPartida(p);
+    await fn(p);
+    await guardarPartida(p);
+  }
+
+  function repartirComoDealer(actorSeat){
+    const seat = (actorSeat!==undefined) ? actorSeat : miSeat;
+    conPartida(async p=>{
+      if(p.fase!=='repartiendo') return;
+      if(p.dealerIndex!==seat) return; // solo reparte quien es mano de la ronda
+      const mazo = crearMazoMezclado();
+      const manos={}, usadas={};
+      for(let s=0;s<4;s++){ manos[s]=[mazo.pop(),mazo.pop(),mazo.pop()]; usadas[s]=[]; }
+      p.manos = manos; p.usadas = usadas;
+      p.turnoSeat = p.manoIndex;
+      p.fase = 'jugando';
+      agregarLog(p, 'Reparte ' + (uidToNombre[seatToUid[seat]]||'Bot') + '.', true);
+    });
+  }
+
+  function irseAlMazo(){
+    conPartida(async p=>{
+      if(p.fase!=='jugando' || p.terminada) return;
+      if(p.turnoSeat!==miSeat || p.trucoState.pendiente || p.envidoState.pendiente) return;
+      const miEq = equipoDe(miSeat);
+      const rivalEq = (miEq+1)%2;
+      const pts = p.trucoState.valor;
+      p.puntos[rivalEq] = (p.puntos[rivalEq]||0) + pts;
+      agregarLog(p, uidToNombre[uid] + ' se va al mazo. Suma ' + pts + ' punto(s) el equipo rival.', true);
+      p.trucoState.pendiente = false;
+      p.envidoState.pendiente = false;
+      finalizarSiCorresponde(p);
+    });
+  }
+
+  function jugarCarta(idx, actorSeat){
+    const seat = (actorSeat!==undefined) ? actorSeat : miSeat;
+    conPartida(async p=>{
+      if(p.fase!=='jugando') return; // la mano ya terminó o se está repartiendo de nuevo
+      p.usadas[seat] = p.usadas[seat]||[];
+      if(p.usadas[seat].includes(idx)) return; // ya se había jugado esta carta
+      const carta = p.manos[seat] ? p.manos[seat][idx] : undefined;
+      if(!carta) return; // estado obsoleto (ej: click viejo después de repartir de nuevo)
+      p.usadas[seat].push(idx);
+      p.cartasJugadasBaza.push({seat:seat, carta});
+      agregarLog(p, (uidToNombre[seatToUid[seat]]||'Bot') + ' juega ' + carta.valor + ' de ' + carta.palo + '.');
+
+      if(p.cartasJugadasBaza.length<4){
+        p.turnoSeat = (seat+1)%4;
+        return;
+      }
+      // baza completa: gana el equipo con la carta más alta
+      let mejorCarta=null, mejorSeat=null, empate=false;
+      p.cartasJugadasBaza.forEach(j=>{
+        const jr = jerarquia(j.carta);
+        if(mejorCarta===null || jr>mejorCarta){ mejorCarta=jr; mejorSeat=j.seat; empate=false; }
+        else if(jr===mejorCarta){ empate=true; }
+      });
+      const ganadorEquipo = empate ? null : equipoDe(mejorSeat);
+      p.bazas.push({ganadorEquipo, ganadorSeat: empate ? null : mejorSeat});
+      agregarLog(p, empate ? 'Parda en esta baza.' : ('Se lleva la baza el equipo de ' + (uidToNombre[seatToUid[mejorSeat]]||'')), true);
+
+      const ganadorMano = evaluarGanadorMano(p.bazas);
+      p.cartasJugadasBaza = [];
+      p.indiceBaza++;
+
+      if(ganadorMano!==null){ cerrarMano(p, ganadorMano); return; }
+      if(p.indiceBaza>=3){ cerrarMano(p, p.bazas[0].ganadorEquipo!==null?p.bazas[0].ganadorEquipo:equipoDe(p.manoIndex)); return; }
+
+      p.turnoSeat = empate ? p.manoIndex : mejorSeat;
+    });
+  }
+
+  function evaluarGanadorMano(bazas){
+    const [b1,b2,b3] = bazas;
+    if(!b1) return null;
+    if(b2===undefined) return null;
+    if(b1.ganadorEquipo!==null && b1.ganadorEquipo===b2.ganadorEquipo) return b1.ganadorEquipo;
+    if(b1.ganadorEquipo===null){ if(b2.ganadorEquipo!==null) return b2.ganadorEquipo; return null; }
+    if(b2.ganadorEquipo===null) return b1.ganadorEquipo;
+    if(!b3) return null;
+    if(b3.ganadorEquipo!==null) return b3.ganadorEquipo;
+    return b1.ganadorEquipo;
+  }
+
+  function cerrarMano(p, ganadorEquipo){
+    const pts = p.trucoState.valor;
+    p.puntos[ganadorEquipo] = (p.puntos[ganadorEquipo]||0) + pts;
+    agregarLog(p, 'Se lleva la mano el equipo de ' + (uidToNombre[seatToUid[ganadorEquipo===0?0:1]]||'') + ' y suma ' + pts + ' punto(s).', true);
+    finalizarSiCorresponde(p);
+  }
+
+  function chequearFinDePartida(p){
+    const objetivo = p.objetivo || 30;
+    if((p.puntos['0']||0)>=objetivo || (p.puntos['1']||0)>=objetivo){
+      p.terminada = true;
+      return true;
+    }
+    return false;
+  }
+
+  function finalizarSiCorresponde(p){
+    if(chequearFinDePartida(p)) return;
+    const nuevoDealer = (p.dealerIndex+1)%4;
+    Object.assign(p, crearRondaEnEspera(nuevoDealer, p.objetivo||30, p.puntos, p.log));
+  }
+
+  function cantarTruco(nivel){
+    conPartida(async p=>{
+      if(p.turnoSeat!==miSeat && !p.trucoState.pendiente) return;
+      p.trucoState.nivel = nivel;
+      p.trucoState.cantadoPor = miSeat;
+      p.trucoState.pendiente = true;
+      const nombres=['Truco','Retruco','Vale cuatro'];
+      agregarLog(p, uidToNombre[uid] + ' canta ' + nombres[nivel-1] + '!', true);
+    });
+  }
+  function responderTruco(quiere, actorSeat){
+    const seat = (actorSeat!==undefined) ? actorSeat : miSeat;
+    conPartida(async p=>{
+      p.trucoState.pendiente=false;
+      if(quiere){
+        p.trucoState.valor = p.trucoState.nivel+1;
+        agregarLog(p, (uidToNombre[seatToUid[seat]]||'Bot') + ' quiere. La mano vale ' + p.trucoState.valor + '.', true);
+      } else {
+        p.trucoState.valor = p.trucoState.nivel;
+        const eq = equipoDe(p.trucoState.cantadoPor);
+        p.puntos[eq] = (p.puntos[eq]||0)+p.trucoState.valor;
+        agregarLog(p, (uidToNombre[seatToUid[seat]]||'Bot') + ' no quiere. Suma ' + p.trucoState.valor + ' punto(s) el equipo rival.', true);
+        finalizarSiCorresponde(p);
+      }
+    });
+  }
+  function cantarEnvido(tipo, actorSeat){
+    const seat = (actorSeat!==undefined) ? actorSeat : miSeat;
+    conPartida(async p=>{
+      const t = tipo==='envido' ? (p.envidoState.chain.includes('envido')?'envido2':'envido') : tipo;
+      p.envidoState.chain.push(t);
+      p.envidoState.cantadoPor = seat;
+      p.envidoState.pendiente = true;
+      const nombres={envido:'Envido',envido2:'Envido',real:'Real envido',falta:'Falta envido'};
+      agregarLog(p, (uidToNombre[seatToUid[seat]]||'Bot') + ' canta ' + nombres[t] + '!', true);
+    });
+  }
+  function responderEnvido(quiere){
+    conPartida(async p=>{
+      p.envidoState.pendiente=false;
+      const cantadorEquipo = equipoDe(p.envidoState.cantadoPor);
+      const ultimo = p.envidoState.chain[p.envidoState.chain.length-1];
+
+      if(!quiere){
+        const pts = p.envidoState.acumulado>0 ? p.envidoState.acumulado : 1;
+        p.puntos[cantadorEquipo] = (p.puntos[cantadorEquipo]||0)+pts;
+        agregarLog(p, 'No quieren el envido. Suma ' + pts + ' punto(s) el equipo que cantó.', true);
+        p.envidoState.resuelto = true;
+        chequearFinDePartida(p);
+        return;
+      }
+      if(ultimo==='falta'){
+        const lider = Math.max(p.puntos['0']||0, p.puntos['1']||0);
+        p.envidoState.acumulado = (p.objetivo||30) - lider;
+      } else {
+        p.envidoState.acumulado += (ultimo==='real'?3:2);
+      }
+      agregarLog(p, 'Quieren el envido. Ahora cada uno canta sus tantos.', true);
+      p.envidoState.declarados = {};
+    });
+  }
+
+  function declararTantos(actorSeat){
+    const seat = (actorSeat!==undefined) ? actorSeat : miSeat;
+    conPartida(async p=>{
+      if(!p.envidoState || p.envidoState.resuelto || p.envidoState.pendiente) return;
+      if(!p.envidoState.chain || p.envidoState.chain.length===0) return;
+      p.envidoState.declarados = p.envidoState.declarados || {};
+      if(p.envidoState.declarados[seat]!==undefined) return; // ya había cantado
+
+      const valor = calcularEnvido(p.manos[seat]||[]);
+      p.envidoState.declarados[seat] = valor;
+      agregarLog(p, (uidToNombre[seatToUid[seat]]||'Bot') + ' canta ' + valor + ' de envido.', true);
+
+      if(Object.keys(p.envidoState.declarados).length>=4){
+        const d = p.envidoState.declarados;
+        const envidoEquipo0 = Math.max(d[0]!==undefined?d[0]:-1, d[2]!==undefined?d[2]:-1);
+        const envidoEquipo1 = Math.max(d[1]!==undefined?d[1]:-1, d[3]!==undefined?d[3]:-1);
+        let ganador;
+        if(envidoEquipo0===envidoEquipo1) ganador = equipoDe(p.manoIndex);
+        else ganador = envidoEquipo0>envidoEquipo1 ? 0 : 1;
+        p.puntos[ganador] = (p.puntos[ganador]||0) + p.envidoState.acumulado;
+        agregarLog(p, 'Gana el envido el equipo ' + (ganador===0?'A':'B') + ' y suma ' + p.envidoState.acumulado + ' punto(s).', true);
+        p.envidoState.resuelto = true;
+        chequearFinDePartida(p);
+      }
+    });
+  }
+
+  // ---------- Mostrar cartas al compañero ----------
+  $('chkMostrar').addEventListener('change', async (e)=>{
+    await update(ref(db,'salas/'+codigo+'/partida/mostrarCartas'), { [uid]: e.target.checked });
+  });
+
+  $('btnRepartirYo').addEventListener('click', ()=>repartirComoDealer());
+  $('btnMazo').addEventListener('click', ()=>{ irseAlMazo(); });
+
+  $('chatBtn').addEventListener('click', ()=>{ $('chatPanel').classList.toggle('abierto'); });
+  $('chatClose').addEventListener('click', ()=>{ $('chatPanel').classList.remove('abierto'); });
+
+  // ---------- Señas ----------
+  async function enviarSena(s){
+    const companero = companeroDe(miSeat);
+    await set(ref(db,'salas/'+codigo+'/senas/'+companero), {
+      emoji:s.emoji, txt:s.txt, from: uidToNombre[uid]||'Tu compañero', ts: Date.now()
+    });
+  }
+  function mostrarToast(sena){
+    const t = $('toastSena');
+    t.textContent = sena.emoji + ' ' + sena.from + ': ' + sena.txt;
+    t.style.display = 'block';
+    setTimeout(()=>{ t.style.display='none'; }, 3500);
+  }
+</script>
+</body>
+</html>
